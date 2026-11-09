@@ -2337,9 +2337,10 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 /* Progress is a whale riding a short rail: it travels left → right as the film
    advances, showing exactly how far through you are. Drag it sideways to scrub;
    the picture itself is never covered by a bar. */
-.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:52px;z-index:40;display:flex;align-items:center;gap:12px;width:min(720px,calc(100vw - 96px));padding:0;border:0;border-radius:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;transition:opacity .2s ease;}
+.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:52px;z-index:40;display:flex;align-items:center;gap:12px;width:min(720px,calc(100vw - 96px));padding:0;border:0;border-radius:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none;transition:opacity .2s ease;}
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
 .dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;flex:1 1 auto;min-width:22px;cursor:pointer;touch-action:none;}
+.dsh-skin-whale-wrap:not([data-visible="false"]) .dsh-skin-whale-track{pointer-events:auto;}
 .dsh-skin-whale{position:absolute;top:0;left:calc(var(--whale-pct,0)*(100% - 22px));width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.8;transition:opacity .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
 .dsh-skin-whale::after{content:"";position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,rgba(96,140,255,.55),rgba(96,140,255,.18) 45%,rgba(96,140,255,0) 72%);opacity:0;transform:scale(.7);transition:opacity .22s ease,transform .22s ease;pointer-events:none;}
 .dsh-skin-whale:hover{opacity:1;}
@@ -6203,7 +6204,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                 return;
               }
               el.style.right = Math.max(Math.round(window.innerWidth - rect.right), 6) + 'px';
-              el.style.bottom = Math.max(Math.round(window.innerHeight - rect.top) + 7, 6) + 'px';
+              el.style.bottom = Math.max(Math.round(window.innerHeight - rect.top) + 4, 6) + 'px';
               el.style.width = Math.round(Math.min(rect.width, window.innerWidth - 24)) + 'px';
             };
             sync();
