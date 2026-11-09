@@ -160,13 +160,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.10';
+  const PLUGIN_VERSION = '1.0.11';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T22:24';
+  const BUILD = '2026-11-09T22:41';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -1440,6 +1440,7 @@ window.__ModuleLoader__.load({
       'mode.needModifier': 'Add Ctrl, ⌘ or Alt — a bare key would break typing.',
       'mode.pureHint': 'Pure mode · press Esc twice to come back',
       'video.clockHint': 'Click to play or pause · F8',
+      'video.whaleHint': 'Drag the whale to seek · tap to play or pause',
       'section.vault': 'Key vault',
       'vault.open': 'Open key vault',
       'vault.desc': 'The vault chip moved out of the composer row so the playback clock can use that spot.',
@@ -1620,6 +1621,7 @@ window.__ModuleLoader__.load({
       'mode.needModifier': '至少要有 Ctrl / ⌘ / Alt 之一，否则会抢走正常打字。',
       'mode.pureHint': '纯净模式 · 连按两次 Esc 退出',
       'video.clockHint': '点一下播放/暂停 · F8',
+      'video.whaleHint': '拖动小鲸鱼调进度 · 轻点播放/暂停',
       'section.vault': '密码库',
       'vault.open': '打开密码库',
       'vault.desc': '密码库的胶囊从输入框那一行移到这里，空出的位置用来显示播放时间。',
@@ -2126,9 +2128,15 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-quick-vthumb.is-none{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);display:flex;align-items:center;justify-content:center;}
 .dsh-skin-quick-vph{display:block;width:100%;height:100%;background:var(--dsw-alias-bg-layer-1);}
 .dsh-skin-quick-vcheck{position:absolute;right:2px;bottom:2px;display:flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-brand-primary);color:#fff;}
-/* One third of the viewport, pinned right: the picture keeps the rest. */
-.dsh-skin-seekbar{position:fixed;right:18px;bottom:calc(var(--dsh-composer-height,152px) + 26px);z-index:32;display:flex;flex-direction:column;gap:2px;width:min(33vw,520px);max-width:calc(100vw - 36px);padding:6px 12px;border:none;border-radius:999px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.55));color:#fff;pointer-events:none;opacity:0;transition:opacity .18s ease;font-size:12px;box-shadow:none;}
-.dsh-skin-seekbar[data-visible="true"]{opacity:1;pointer-events:auto;}
+/* Progress is a whale, not a bar: 15px of ink in the status row. Drag it
+   sideways to scrub; the picture stays untouched. */
+.dsh-skin-whale{position:fixed;right:92px;bottom:5px;z-index:40;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.68;transition:opacity .15s ease,transform .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
+.dsh-skin-whale:hover{opacity:1;}
+.dsh-skin-whale[data-dragging="true"]{cursor:grabbing;transform:scale(1.2);opacity:1;}
+.dsh-skin-whale svg{display:block;filter:drop-shadow(0 0 6px rgba(77,107,254,.5));}
+.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:5px;z-index:40;}
+.dsh-skin-whale-wrap .dsh-skin-whale{position:static;}
+.dsh-skin-whale-wrap .dsh-skin-player-hud{position:absolute;right:0;bottom:26px;white-space:nowrap;}
 .dsh-skin-clock{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border:none;border-radius:999px;background:rgba(255,255,255,.10);color:rgba(255,255,255,.92);font:inherit;font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:.02em;cursor:pointer;white-space:nowrap;}
 .dsh-skin-clock:hover{background:rgba(255,255,255,.2);}
 .dsh-skin-clock-time{font-variant-numeric:tabular-nums;}
@@ -2154,7 +2162,7 @@ body.dsh-skin-video-active .bv-chip{display:none !important;}
 #root,[data-dsh-root]{transition:opacity .38s cubic-bezier(.22,.61,.36,1),transform .38s cubic-bezier(.22,.61,.36,1);}
 body.dsh-skin-cinema #root,body.dsh-skin-cinema [data-dsh-root]{opacity:0 !important;transform:translateY(14px) scale(.994);pointer-events:none !important;}
 body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{transition:opacity .38s ease,transform .38s ease;}
-body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none !important;}
+body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{opacity:0 !important;pointer-events:none !important;}
 @media (max-width:520px){.dsh-skin-quick{left:12px;right:12px;width:auto;bottom:72px;}}
 @media (hover:none){.dsh-skin-del,.dsh-skin-fav,.dsh-skin-photo-del,.dsh-skin-select{opacity:1;pointer-events:auto;}}
 @media (prefers-reduced-motion:no-preference){
@@ -5777,13 +5785,13 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
           const [dragging, setDragging] = useState(false);
           const [visible, setVisible] = useState(true);
           const [hud, setHud] = useState('');
-          const seekRef = useRef(null);
-          const seekTrackRef = useRef(null);
           const draggingRef = useRef(false);
           const hoverRef = useRef(false);
           const seekGuardRef = useRef(0);
           const pendingSeekRef = useRef(null);
           const dragRef = useRef(null);
+          const whaleRef = useRef(null);
+          const whaleDragRef = useRef(null);
           const ctrlHeldRef = useRef(false);
           const hideTimer = useRef(null);
           const hudTimer = useRef(null);
@@ -6001,33 +6009,70 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
             return found || videoElementRef.current;
           };
 
-          const seekAt = (clientX, rect) => {
+          // Dragging the whale scrubs. Travel of half the window width covers
+          // the whole runtime, which keeps the gesture short but precise.
+          const applyWhaleSeek = (seconds) => {
             const node = currentVideoNode();
-            if (!node || !Number.isFinite(node.duration) || node.duration <= 0) return;
-            if (!rect) {
-              const track = seekTrackRef.current;
-              if (track && typeof track.getBoundingClientRect === 'function') rect = track.getBoundingClientRect();
-            }
-            if (!rect || !rect.width) return;
-            const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
-            const next = ratio * node.duration;
-            markSeek(next);
-            try { node.currentTime = next; } catch (error) { /* ignore */ }
-            setProgress(ratio);
-            setHud(fmt(next) + ' / ' + fmt(node.duration));
+            if (!node) return;
+            const total = Number(node.duration);
+            if (!Number.isFinite(total) || total <= 0) return;
+            const value = clamp(seconds, 0, total);
+            markSeek(value);
+            try { node.currentTime = value; } catch (error) { /* ignore */ }
+            setProgress(value / total);
+            setHud(fmt(value) + ' / ' + fmt(total));
             if (hudTimer.current) clearTimeout(hudTimer.current);
-            hudTimer.current = setTimeout(() => setHud(''), 900);
+            hudTimer.current = setTimeout(() => setHud(''), 1200);
           };
 
-          const onSeek = (event) => {
-            const value = clamp(Number(event.target.value) / 1000, 0, 1);
-            setProgress(value);
+          const onWhaleDown = (event) => {
+            if (event.button != null && event.button !== 0) return;
             const node = currentVideoNode();
-            if (node && Number.isFinite(node.duration)) {
-              markSeek(value * node.duration);
-              try { node.currentTime = value * node.duration; } catch (error) { /* ignore */ }
+            if (!node) return;
+            if (event.preventDefault) event.preventDefault();
+            const total = Number(node.duration);
+            whaleDragRef.current = {
+              x: event.clientX,
+              start: Number(node.currentTime) || 0,
+              total: Number.isFinite(total) && total > 0 ? total : 0,
+              moved: 0
+            };
+            draggingRef.current = true;
+            setDragging(true);
+            if (event.currentTarget && event.currentTarget.setPointerCapture && event.pointerId != null) {
+              try { event.currentTarget.setPointerCapture(event.pointerId); } catch (error) { /* ignore */ }
+            }
+            const span = Math.max(320, (typeof window !== 'undefined' ? window.innerWidth : 1200) * 0.5);
+            const move = (moveEvent) => {
+              const drag = whaleDragRef.current;
+              if (!drag) return;
+              const dx = moveEvent.clientX - drag.x;
+              drag.moved = Math.max(drag.moved, Math.abs(dx));
+              if (drag.total) applyWhaleSeek(drag.start + (dx / span) * drag.total);
+            };
+            const end = () => {
+              const drag = whaleDragRef.current;
+              whaleDragRef.current = null;
+              draggingRef.current = false;
+              setDragging(false);
+              if (typeof window !== 'undefined') {
+                window.removeEventListener('pointermove', move);
+                window.removeEventListener('pointerup', end);
+                window.removeEventListener('pointercancel', end);
+              }
+              // A tap that never moved is a play/pause toggle, not a seek.
+              if (drag && drag.moved < 3) {
+                store.set({ videoPlaying: !store.get().videoPlaying });
+                recordDebug('whale:toggle');
+              }
+            };
+            if (typeof window !== 'undefined') {
+              window.addEventListener('pointermove', move);
+              window.addEventListener('pointerup', end);
+              window.addEventListener('pointercancel', end);
             }
           };
+
           function fmt(seconds) {
             if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
             const h = Math.floor(seconds / 3600);
@@ -6040,33 +6085,35 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
           // (F7 / F8 / F9) and the clock lives in the composer dock chip. What
           // is left is a slim, right-aligned seek strip — one third of the
           // viewport wide, so the picture keeps almost all of its area.
-          const bar = h('div', {
-            className: 'dsh-skin-seekbar',
+          // No track, no chrome: a single whale you can drag. Horizontal travel
+          // maps to time, so the picture never gets covered by a bar.
+          const whale = h('button', {
+            ref: whaleRef,
+            type: 'button',
+            className: 'dsh-skin-whale',
             'data-scheme': scheme,
-            'data-visible': visible ? 'true' : 'false',
-            key: 'player',
-            style: { bottom: barBottom + 'px' },
-            onMouseEnter: () => { hoverRef.current = true; setVisible(true); },
+            'data-dragging': dragging ? 'true' : 'false',
+            title: hud ? hud : t('video.whaleHint'),
+            'aria-label': t('video.progress'),
+            onPointerDown: onWhaleDown,
+            onMouseEnter: () => { hoverRef.current = true; },
             onMouseLeave: () => { hoverRef.current = false; }
           },
-            hud ? h('div', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null,
-            h('div', { className: 'dsh-skin-player-seek-wrap', ref: seekTrackRef },
-              h('input', {
-                ref: seekRef, type: 'range', className: 'dsh-skin-player-seek',
-                min: 0, max: 1000, step: 1, value: Math.round(progress * 1000),
-                'aria-label': t('video.progress'),
-                onChange: onSeek,
-                onInput: onSeek,
-                onMouseDown: () => { draggingRef.current = true; setDragging(true); },
-                onTouchStart: () => { draggingRef.current = true; setDragging(true); },
-                onMouseUp: () => { draggingRef.current = false; setDragging(false); },
-                onTouchEnd: () => { draggingRef.current = false; setDragging(false); },
-                onPointerUp: () => { draggingRef.current = false; setDragging(false); },
-                onPointerCancel: () => { draggingRef.current = false; setDragging(false); },
-                onBlur: () => { draggingRef.current = false; setDragging(false); }
-              })
+            h('svg', { viewBox: '0 0 32 32', width: 15, height: 15, 'aria-hidden': 'true', focusable: 'false' },
+              h('path', {
+                fill: 'currentColor',
+                d: 'M3.2 17.6c2.7.2 4.6-.7 6.3-2.2 1.9-1.7 3.6-3.9 6.9-3.9 4.2 0 7.4 2.9 7.4 6.6 0 4-3.4 7-8.6 7-2.6 0-4.9-.8-6.8-2.1l-3.6 1.9 1.1-3.2c-1.6-.9-2.6-2.1-2.7-4.1z'
+              }),
+              h('circle', { cx: '19.6', cy: '15.8', r: '1.05', fill: '#fff' })
             )
           );
+          if (hud) {
+            return h('div', { className: 'dsh-skin-whale-wrap' },
+              h('span', { className: 'dsh-skin-player-hud' }, hud),
+              whale
+            );
+          }
+          const bar = whale;
           if (createPortal && typeof document !== 'undefined' && document.body) {
             return createPortal(bar, document.body);
           }
