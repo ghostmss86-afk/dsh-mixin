@@ -158,3 +158,37 @@ npm run guard        # 等价于 node scripts/guard.mjs --root . --rules scripts
 
 规则来源与事故复盘在另一个仓库：`ghostmss86-afk/engineering-lessons`（`lessons/2026-11-silent-video-wallpaper.md`）。
 改规则请改那边再同步过来，不要在本地偷偷放宽。
+
+## 九、两条传输通道：为什么自定义 scheme 不行
+
+桌面端界面跑在 `dsh-app://app`。这个 scheme 是宿主注册的协议处理器，转发小文件没问题，
+但**大文件的 Range 请求会被丢掉**：`<video>` 拿不到 206，最终以 `NotSupportedError`
+拒绝 `play()`，页面只剩第一帧。
+
+所以媒体必须走两条腿里正确的那条：
+
+| 通道 | 用途 | 限制 |
+| --- | --- | --- |
+| 应用同源（`dsh-app://app/api/...`） | API：`prepare` / `proxy` / `relink` / `pick*` / `report` | 带会话 cookie；**不能流式播放大文件** |
+| 回环 HTTP（`http://127.0.0.1:<随机端口>/<令牌>/api/...`） | 媒体：`video` / `audio` / `proxy-file` | 只服务这三类，令牌无效即 403 |
+
+`mediaPath()` 只在匹配 `MEDIA_ASSET` 时改写为回环地址，API 永远留在应用源——否则
+`prepare` 会被打到只服务媒体的端口上，直接 404。
+
+客户端启动时 `GET /api/skin-studio/media/ping` 拿到 `mediaServer`，写进
+`window.__skinMediaOrigin`，然后 **`store.touch()` 触发重渲染**。少了这一步，首帧
+还是相对地址，元素永远起不来——这是「改完看起来没生效」的常见来源。
+
+## 十、先验证传输，再怀疑解码
+
+本次故障排查中，`ffprobe` 显示 h264+aac（完全可播）、文件也在，但播放仍然失败。
+真正的方法是**分别验证三层**：
+
+1. 文件层：`ffprobe` 有没有音视频流、编码是什么；
+2. 传输层：对同一个 URL 发 `Range: bytes=0-1023`，看是否 206、`content-type` 对不对、
+   文件头是否是 `ftyp`；
+3. 元素层：`play()` 的 rejection `name` 是 `NotSupportedError`（没有源）还是
+   `NotAllowedError`（自动播放策略）。
+
+三层里任何一层不验，就会在另外两层里瞎猜。`scripts/check-media.mjs` 把第 2 层的
+关键约束（回环服务存在、令牌校验、资产才改写）变成了可执行的断言。
