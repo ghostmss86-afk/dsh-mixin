@@ -53,7 +53,31 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 - 快捷键失灵、键位被系统占用、外接键盘换布局，都还有这一条路。
 - 这条逻辑写在 `ModeController` 的 keydown 里，**先于**快捷键匹配执行，不能被组合键分支挡住。
 
-## 五、接线清单（改这个功能时逐条对照）
+## 五、打字时不许抢画面
+
+光标停在输入框里时，用户正在写东西，而且会看着上面的对话内容做对照。
+这个时候按到纯净快捷键，把整屏藏掉，等于把他正在看的东西抽走。
+
+规则：**只要 `isTextEntryFocused()` 为真，就不允许「进入」纯净模式。**
+
+```js
+if (wanted === MODE_PURE && lock !== MODE_PURE && isTextEntryFocused()) {
+  store.notify('modeTyping')   // 「光标在输入框里，画面不会隐藏」
+  return
+}
+```
+
+三个细节：
+
+1. **只拦进入**。`lock !== MODE_PURE` 这个条件保证解除锁定永远可达——
+   否则用户在输入框里锁住纯模式，就会既看不见也退不出。
+2. **判定要认得出真实的 composer**。DSH 的输入区可能是 `contenteditable`、
+   也可能是 Lexical（`data-lexical-editor`）或 `role="textbox"` 的容器，
+   所以沿着 `parentElement` 往上找，而不是只看 `activeElement` 本身。
+3. **非文本 input 不算**。checkbox / radio / range / file 这些拿到焦点时用户并没有在打字，
+   不该阻止快捷键。
+
+## 六、接线清单（改这个功能时逐条对照）
 
 - [ ] `normalizeState` 校验 `modeLock` 属于三个合法值，非法回落 `none`
 - [ ] `pickPersisted` 保存 `modeLock` 与 `modeKeys`，刷新后锁定状态仍在
@@ -63,7 +87,8 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 - [ ] 组合键至少含 `Ctrl` / `Meta` / `Alt` 之一，裸字母不接收
 - [ ] 同一组合不能同时分配给两种模式
 - [ ] 所有 `mode.*` 文案在 `en` 与 `zh` 里都存在
+- [ ] 光标在输入框里时，进入纯净模式的路径被拦住，且**解除**路径不被拦
 
-以上八条已脚本化：`node scripts/check-modes.mjs .`（`npm run check` 与 CI 都会跑）。
+以上九条已脚本化：`node scripts/check-modes.mjs .`（`npm run check` 与 CI 都会跑）。
 脚本是文本级的，没有 DOM、没有打包器、没有依赖——它查的是「有没有接线」，
 不是「运行起来对不对」，因此不能替代手点一遍。

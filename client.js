@@ -87,15 +87,41 @@ window.__ModuleLoader__.load({
         return part;
       }).join('');
     }
+    // Inputs whose focus does NOT mean "the user is typing a message".
+    const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color', 'image', 'hidden']);
+
+    // True when the caret is in something the user types into. Pure mode must
+    // never swallow the screen while that is the case: the user is writing and
+    // looking at the conversation above the composer to compare.
+    function isTextEntryFocused() {
+      if (typeof document === 'undefined') return false;
+      let node = document.activeElement;
+      while (node && node !== document.body && node !== document.documentElement) {
+        if (node.nodeType === 1) {
+          const tag = String(node.tagName || '').toUpperCase();
+          if (tag === 'INPUT') {
+            const type = String(node.getAttribute('type') || 'text').toLowerCase();
+            if (!NON_TEXT_INPUTS.has(type)) return true;
+          }
+          if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+          if (node.isContentEditable) return true;
+          if (String(node.getAttribute('role') || '').toLowerCase() === 'textbox') return true;
+          if (node.hasAttribute && node.hasAttribute('data-lexical-editor')) return true;
+        }
+        node = node.parentElement;
+      }
+      return false;
+    }
+
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.6';
+  const PLUGIN_VERSION = '1.0.7';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T20:30';
+  const BUILD = '2026-11-09T21:41';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -1348,6 +1374,7 @@ window.__ModuleLoader__.load({
       'mode.state.none': 'normal',
       'mode.enterPure': 'Enter pure mode',
       'mode.exit': 'Back to normal',
+      'notice.modeTyping': 'Cursor is in the input box — the screen will not hide. Move the caret away or press Esc, then use the shortcut.',
       'notice.modeExit': 'Left pure mode.',
       'notice.modeBlockedPure': 'Pure mode is locked — press its own shortcut to leave it.',
       'notice.modeBlockedNormal': 'Normal mode is locked — press its own shortcut to release it.',
@@ -1517,6 +1544,7 @@ window.__ModuleLoader__.load({
       'mode.state.none': '正常',
       'mode.enterPure': '进入纯净模式',
       'mode.exit': '回到正常界面',
+      'notice.modeTyping': '光标在输入框里，画面不会隐藏。先移开光标或按 Esc，再按快捷键。',
       'notice.modeExit': '已退出纯净模式。',
       'notice.modeBlockedPure': '纯净模式已锁定，请用它自己的快捷键解除。',
       'notice.modeBlockedNormal': '正常模式已锁定，请用它自己的快捷键解除。',
@@ -2063,6 +2091,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         videoPartial: 'video.partial',
         videoRelinked: 'video.relinked',
         videoRelinkFailed: 'video.relinkFailed',
+        modeTyping: 'notice.modeTyping',
         modeExit: 'notice.modeExit',
         modeBlockedPure: 'notice.modeBlockedPure',
         modeBlockedNormal: 'notice.modeBlockedNormal'
@@ -5255,6 +5284,14 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               if (!wanted) return;
               event.preventDefault();
               if (typeof event.stopPropagation === 'function') event.stopPropagation();
+              // Typing wins over the hotkey: if the caret sits in the composer,
+              // pressing the pure shortcut must not black out the screen the user
+              // is reading. Leaving pure mode is still allowed, so this can never
+              // trap anyone.
+              if (wanted === MODE_PURE && lock !== MODE_PURE && isTextEntryFocused()) {
+                store.notify('modeTyping');
+                return;
+              }
               if (wanted === MODE_PURE) {
                 if (lock === MODE_NORMAL) { store.notify('modeBlockedNormal'); return; }
                 store.set({ modeLock: lock === MODE_PURE ? MODE_NONE : MODE_PURE });

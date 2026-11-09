@@ -86,7 +86,17 @@ expect(
   missing.length ? `missing ${missing.join(', ')}` : 'no mode strings found — the scan is broken'
 )
 
-// 6. The lock has to survive a reload, otherwise "locked" is a lie.
+// 6. Typing wins over the hotkey. Entering pure mode while the caret is in the
+//    composer would hide the conversation the user is reading; leaving it must
+//    stay allowed, or the guard itself becomes a trap.
+expect(
+  'typing blocks entry into pure mode',
+  /function isTextEntryFocused\(\)/.test(source) &&
+    /wanted === MODE_PURE && lock !== MODE_PURE && isTextEntryFocused\(\)/.test(source),
+  'the shortcut can black out the screen while the caret is in the input box'
+)
+
+// 7. The lock has to survive a reload, otherwise "locked" is a lie.
 const persisted = source.slice(source.indexOf('function pickPersisted'), source.indexOf('function noticeText'))
 expect(
   'modeLock and modeKeys are persisted',
