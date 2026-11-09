@@ -140,7 +140,7 @@ expect(
   'the composer lights up under the pointer',
   /\[data-composer-card\]:hover/.test(source) &&
     /\[data-composer-card\]:focus-within/.test(source) &&
-    /0 0 50px 14px/.test(source),
+    /0 0 50px 18px/.test(source),
   'the halo is the only cue that the pointer sits on the input'
 )
 
