@@ -6107,13 +6107,12 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
               h('circle', { cx: '19.6', cy: '15.8', r: '1.05', fill: '#fff' })
             )
           );
-          if (hud) {
-            return h('div', { className: 'dsh-skin-whale-wrap' },
-              h('span', { className: 'dsh-skin-player-hud' }, hud),
-              whale
-            );
-          }
-          const bar = whale;
+          // Always the same tree: swapping structures on the first pointermove
+          // would unmount the button and drop the pointer capture mid-drag.
+          const bar = h('div', { className: 'dsh-skin-whale-wrap', 'data-scheme': scheme },
+            hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null,
+            whale
+          );
           if (createPortal && typeof document !== 'undefined' && document.body) {
             return createPortal(bar, document.body);
           }
