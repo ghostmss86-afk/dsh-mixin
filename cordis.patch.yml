@@ -1,0 +1,3 @@
+- insert:
+    - id: skin-studio
+      name: '@local/skin-studio'

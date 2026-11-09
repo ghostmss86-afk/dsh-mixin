@@ -1,0 +1,56 @@
+{
+  "name": "@local/skin-studio",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Custom color skins and chat wallpapers with one-click switching.",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "skin",
+    "theme",
+    "wallpaper"
+  ],
+  "license": "MIT",
+  "author": "ghostmss86-afk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ghostmss86-afk/dsh-skin-studio.git"
+  },
+  "homepage": "https://github.com/ghostmss86-afk/dsh-skin-studio#readme",
+  "bugs": {
+    "url": "https://github.com/ghostmss86-afk/dsh-skin-studio/issues"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-theme"
+      ]
+    }
+  }
+}
