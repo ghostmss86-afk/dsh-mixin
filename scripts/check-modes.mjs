@@ -96,16 +96,16 @@ expect(
   'the shortcut can black out the screen while the caret is in the input box'
 )
 
-// 6b. The interface must never fade out on its own. The old behaviour hid the
-//     whole app five seconds after the last input, which is indistinguishable
-//     from the pure-mode bug and fires exactly while someone is typing.
+// 6b. The interface may fade out after idle — but only after a long, explicit
+//     delay and never while the caret is in a text field. The 5s version made
+//     people think the app was closing itself.
 expect(
-  'cinema auto-hide is opt-in and off by default',
-  /function CinemaMode[\s\S]{0,400}state\.cinemaAutoHide !== true\) return undefined;/.test(source) &&
-    /cinemaAutoHide: state\.cinemaAutoHide === true,/.test(source) &&
-    /cinemaAutoHide: state\.cinemaAutoHide === true,[\s\S]{0,120}/.test(source) &&
-    /if \(!document\.body \|\| isTextEntryFocused\(\)\) return;/.test(source),
-  'the app can still hide itself after an idle timer'
+  'cinema auto-hide waits 23s and yields to typing',
+  /const CINEMA_IDLE_MS = 23000;/.test(source) &&
+    /cinemaAutoHide: state\.cinemaAutoHide !== false,/.test(source) &&
+    /if \(!document\.body \|\| isTextEntryFocused\(\)\) return;/.test(source) &&
+    /document\.addEventListener\('focusin', onFocus, true\)/.test(source),
+  'the idle timer is short, off by default, or ignores focused inputs'
 )
 
 // 6c. A refused autoplay must fall back to muted playback, not leave a frozen

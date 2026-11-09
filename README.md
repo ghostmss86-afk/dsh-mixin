@@ -2,7 +2,7 @@
 
 [![check](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml/badge.svg)](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.0.8-informational.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.0.9-informational.svg)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-DSH%200.2.2--rc.1-lightgrey.svg)](#兼容性)
 
 皮肤与壁纸是 DeepSeek Harness 的界面插件。它给界面换一套配色，并给聊天区铺上渐变、图片或视频壁纸；改动立即生效，选择保存在当前浏览器里。
@@ -21,8 +21,9 @@
 | 视频批量导入 | 一次多选、整目录导入、文件与文件夹拖拽；导入即落真实路径 | 设置页与左下角快捷面板同能力 |
 | 全屏播放 | 双击页面顶部空白条或播放器控制条进入全屏，再双击 / Esc 退出 | 触摸屏双击同样有效 |
 | 播放自检 | 设置页直接写出「原文件 / 音轨 / 画面静音 / 声音来源」，一键复制 | 无需打开控制台 |
-| 显示模式 | 自录两个快捷键：一个进纯净模式（隐藏整个界面，只留壁纸），一个回正常界面；各自一键锁定、再按解除。光标在输入框里时不抢画面，进入时底部给出 3.2 秒退出提示 | 快捷键需含 Ctrl / ⌘ / Alt |
-| 界面自动隐藏 | 可选：播放视频时停止操作 5 秒淡出应用界面。**默认关闭**，且任何时候都不在输入框有光标时触发 | 设置里手动开启 |
+| 显示模式 | 自录两个快捷键：一个进纯净模式（隐藏整个界面，只留壁纸），一个回正常界面；各自一键锁定、再按解除。光标在输入框里时不抢画面，进入时底部给出 3.2 秒退出提示。播放时间显示在输入框右侧胶囊，密码库入口移到设置里 | 快捷键需含 Ctrl / ⌘ / Alt |
+| 界面自动隐藏 | 播放视频时停止操作 23 秒淡出应用界面；光标在输入框里时永不触发 | 设置里可关闭 |
+| 硬件按键 | F7 上一个 / F8 播放暂停 / F9 下一个（也认系统媒体键）；时间显示在输入框那一行的胶囊里，点一下即暂停 | 光标在输入框时不抢键 |
 | 收藏与筛选 | 「全部 / 收藏 / 我的照片 / 渐变」四个筛选，点星标收藏 | — |
 | 柔化壁纸 | 在壁纸上叠一层柔光，保证文字可读 | 0–50%，默认 12% |
 | 半透明面板 | 让聊天卡片与侧栏透出壁纸 | 开关 |

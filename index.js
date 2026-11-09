@@ -423,7 +423,12 @@ export function apply(ctx) {
         }
       }
       if (url.pathname === `${ROUTE_PREFIX}/ping`) {
-        return json({ ok: true, service: 'skin-studio-media' });
+        // The renderer may run from the desktop's dsh-app:// shell, where a
+        // relative /api/... URL is not a playable media URL. Handing back the
+        // real HTTP origin lets the client build absolute src values instead
+        // of guessing (and losing playback to NotSupportedError).
+        const origin = typeof webServer.getOrigin === 'function' ? webServer.getOrigin() : '';
+        return json({ ok: true, service: 'skin-studio-media', origin: origin || '', media: ROUTE_PREFIX });
       }
       if (url.pathname === `${ROUTE_PREFIX}/prepare`) {
         let payload = null;

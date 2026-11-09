@@ -8,13 +8,22 @@ window.__ModuleLoader__.load({
     const { useEffect, useRef, useState, useSyncExternalStore } = React;
 
     const STORAGE_KEY = 'dsh.skin-studio.v1';
+    // How long the app stays visible after the last input while a wallpaper
+    // video plays. 5s felt like the interface was disappearing on its own;
+    // 23s is long enough to read a paragraph without being interrupted.
+    const CINEMA_IDLE_MS = 23000;
     function mediaBase() {
       if (typeof window === 'undefined') return '';
       return typeof window.__skinMediaOrigin === 'string' ? window.__skinMediaOrigin : '';
     }
     function mediaPath(path) {
-      const value = String(path || '');
-      if (!value || !value.startsWith('/')) return value;
+      let value = String(path || '');
+      if (!value) return value;
+      // A stored URL can carry the origin of a previous launch (dsh web picks a
+      // new port every time). Keep only the path so the current origin wins.
+      const stale = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(\/.*)$/i.exec(value);
+      if (stale) value = stale[1];
+      if (!value.startsWith('/')) return value;
       return mediaBase() + value;
     }
     // Only same-origin media routes can feed the sidecar <audio> element. Older
@@ -151,13 +160,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.8';
+  const PLUGIN_VERSION = '1.0.9';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T22:04';
+  const BUILD = '2026-11-09T22:23';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -400,11 +409,22 @@ window.__ModuleLoader__.load({
       return null;
     }
 
+    // The element must have a usable src on its FIRST render. `fullUrl` is a
+    // runtime cache (it is deliberately not persisted), so a record restored
+    // from disk used to resolve to source:'' until an async helper happened to
+    // write fullUrl — and <video src=""> rejects play() with NotSupportedError
+    // without ever firing an `error` event. Deriving the route from the path is
+    // synchronous, deterministic, and survives a reload.
+    function videoRoute(sourcePath) {
+      if (!sourcePath) return '';
+      return '/api/skin-studio/media/video?path=' + encodeURIComponent(sourcePath);
+    }
     function resolveVideo(state) {
       if (!state.videoId || state.videoId === 'none') return null;
       const item = state.customVideos.find((video) => video.id === state.videoId);
       if (!item) return null;
-      return Object.assign({}, item, { source: item.proxyUrl || item.fullUrl || item.url || '' });
+      const source = item.proxyUrl || item.fullUrl || item.url || videoRoute(item.sourcePath) || '';
+      return Object.assign({}, item, { source });
     }
 
     // The veil keeps host text readable on any image: light schemes add a white
@@ -599,7 +619,9 @@ window.__ModuleLoader__.load({
         // persisted mute is exactly how "no sound" gets re-reported after a
         // restart, so a fresh load always starts audible.
         videoMuted: false,
-        videoVolume: Number.isFinite(Number(state.videoVolume)) ? clamp(Number(state.videoVolume), 0, 1) : 0.45,
+        // Playback volume defaults to maximum: the wallpaper is the point, and a
+        // half-volume default read as "no sound" on laptop speakers.
+        videoVolume: Number.isFinite(Number(state.videoVolume)) ? clamp(Number(state.videoVolume), 0, 1) : 1,
         videoLoop: state.videoLoop !== false,
         videoAudioVersion: 2,
         // 'none' shows the app, 'pure' hides every surface but the wallpaper,
@@ -613,7 +635,7 @@ window.__ModuleLoader__.load({
         // Opt-in, and off by default: a wallpaper must never decide on its own
         // that the interface should fade away while the user is reading or
         // typing. The explicit pure-mode hotkey covers the "clean screen" case.
-        cinemaAutoHide: state.cinemaAutoHide === true,
+        cinemaAutoHide: state.cinemaAutoHide !== false,
         // Last 20 mode/media events, persisted so a recurrence can be explained
         // from storage instead of a screenshot.
         debugLog: (Array.isArray(state.debugLog) ? state.debugLog : [])
@@ -675,7 +697,7 @@ window.__ModuleLoader__.load({
           pure: normalizeModeKey(state.modeKeys && state.modeKeys.pure),
           normal: normalizeModeKey(state.modeKeys && state.modeKeys.normal)
         },
-        cinemaAutoHide: state.cinemaAutoHide === true,
+        cinemaAutoHide: state.cinemaAutoHide !== false,
         debugLog: (Array.isArray(state.debugLog) ? state.debugLog : []).slice(-20),
         customVideos: state.customVideos.map((item) => ({
           id: item.id,
@@ -1413,6 +1435,11 @@ window.__ModuleLoader__.load({
       'mode.recording': 'Press a combination…',
       'mode.needModifier': 'Add Ctrl, ⌘ or Alt — a bare key would break typing.',
       'mode.pureHint': 'Pure mode · press Esc twice to come back',
+      'video.clockHint': 'Click to play or pause · F8',
+      'section.vault': 'Key vault',
+      'vault.open': 'Open key vault',
+      'vault.desc': 'The vault chip moved out of the composer row so the playback clock can use that spot.',
+      'vault.missing': 'The key vault plugin is not installed in this profile.',
       'mode.conflict': 'That combination already belongs to the other mode.',
       'mode.clear': 'Clear shortcut',
       'mode.hint': 'First press locks the mode, the second press unlocks it. While one mode is locked the other shortcut is ignored. In pure mode, Esc twice is the emergency exit.',
@@ -1588,6 +1615,11 @@ window.__ModuleLoader__.load({
       'mode.recording': '请按下组合键…',
       'mode.needModifier': '至少要有 Ctrl / ⌘ / Alt 之一，否则会抢走正常打字。',
       'mode.pureHint': '纯净模式 · 连按两次 Esc 退出',
+      'video.clockHint': '点一下播放/暂停 · F8',
+      'section.vault': '密码库',
+      'vault.open': '打开密码库',
+      'vault.desc': '密码库的胶囊从输入框那一行移到这里，空出的位置用来显示播放时间。',
+      'vault.missing': '当前 profile 里没有安装密码库插件。',
       'mode.conflict': '这个组合已经被另一种模式占用。',
       'mode.clear': '清除快捷键',
       'mode.hint': '第一次按锁定该模式，再按一次解除锁定。锁定期间另一个快捷键不生效。在纯净模式下，连按两次 Esc 是应急出口。',
@@ -2090,8 +2122,14 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-quick-vthumb.is-none{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);display:flex;align-items:center;justify-content:center;}
 .dsh-skin-quick-vph{display:block;width:100%;height:100%;background:var(--dsw-alias-bg-layer-1);}
 .dsh-skin-quick-vcheck{position:absolute;right:2px;bottom:2px;display:flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-brand-primary);color:#fff;}
-.dsh-skin-player{position:fixed;left:50%;bottom:calc(var(--dsh-composer-height,152px) + 28px);transform:translateX(-50%);z-index:32;display:flex;flex-direction:column;gap:3px;width:min(760px,calc(100vw - 40px));padding:12px 18px 10px;border:none;border-radius:10px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.62));color:#fff;pointer-events:none;opacity:0;transition:opacity .18s ease;font-size:12px;box-shadow:none;}
-.dsh-skin-player[data-visible="true"]{opacity:1;pointer-events:auto;}
+/* One third of the viewport, pinned right: the picture keeps the rest. */
+.dsh-skin-seekbar{position:fixed;right:18px;bottom:calc(var(--dsh-composer-height,152px) + 26px);z-index:32;display:flex;flex-direction:column;gap:2px;width:min(33vw,520px);max-width:calc(100vw - 36px);padding:6px 12px;border:none;border-radius:999px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.55));color:#fff;pointer-events:none;opacity:0;transition:opacity .18s ease;font-size:12px;box-shadow:none;}
+.dsh-skin-seekbar[data-visible="true"]{opacity:1;pointer-events:auto;}
+.dsh-skin-clock{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border:none;border-radius:999px;background:rgba(255,255,255,.10);color:rgba(255,255,255,.92);font:inherit;font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:.02em;cursor:pointer;white-space:nowrap;}
+.dsh-skin-clock:hover{background:rgba(255,255,255,.2);}
+.dsh-skin-clock-time{font-variant-numeric:tabular-nums;}
+/* The vault chip moved into settings; its slot in the dock is the clock now. */
+body.dsh-skin-video-active .bv-chip{display:none !important;}
 .dsh-skin-player-row{position:relative;display:flex;align-items:center;gap:10px;min-width:0;}
 .dsh-skin-player-nav{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1px;padding:1px 3px;border-radius:999px;background:rgba(255,255,255,.12);}
 .dsh-skin-player-nav .dsh-skin-player-btn{width:24px;height:24px;border-radius:50%;}
@@ -2112,7 +2150,7 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 #root,[data-dsh-root]{transition:opacity .38s cubic-bezier(.22,.61,.36,1),transform .38s cubic-bezier(.22,.61,.36,1);}
 body.dsh-skin-cinema #root,body.dsh-skin-cinema [data-dsh-root]{opacity:0 !important;transform:translateY(14px) scale(.994);pointer-events:none !important;}
 body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{transition:opacity .38s ease,transform .38s ease;}
-body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !important;}
+body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none !important;}
 @media (max-width:520px){.dsh-skin-quick{left:12px;right:12px;width:auto;bottom:72px;}}
 @media (hover:none){.dsh-skin-del,.dsh-skin-fav,.dsh-skin-photo-del,.dsh-skin-select{opacity:1;pointer-events:auto;}}
 @media (prefers-reduced-motion:no-preference){
@@ -2143,6 +2181,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         videoTooLarge: 'video.tooLarge',
         videoQuota: 'video.quota',
         videoPlaybackError: 'video.playbackError',
+        vaultMissing: 'vault.missing',
         videoProxyReady: 'video.proxyReady',
         videoAudioUnsupported: 'video.audioUnsupported',
         videoAutoplayBlocked: 'video.autoplayBlocked',
@@ -2173,6 +2212,19 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         const t = ctx.locale.bind('skin-studio');
 
         const store = createStore(loadState());
+        // Resolve the HTTP origin of the host before any <video> mounts. The
+        // desktop shell serves the UI from dsh-app://app, and media elements
+        // cannot play that scheme even though fetch() can reach it.
+        const mediaOriginReady = (async () => {
+          try {
+            const probe = await fetch('/api/skin-studio/media/ping', { cache: 'no-store' });
+            if (!probe.ok) return;
+            const info = await probe.json();
+            if (info && typeof info.origin === 'string' && info.origin) {
+              window.__skinMediaOrigin = info.origin;
+            }
+          } catch (error) { /* host older than 1.0.9 — keep relative URLs */ }
+        })();
         const fullUrlCache = new Map();
         const videoUrlCache = new Map();
         // In-memory FileSystemFileHandle cache (id -> handle). Handles let a
@@ -4513,6 +4565,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
 
             h(ModeSection, { key: 'modes' }),
 
+            h(VaultSection, { key: 'vault' }),
+
             h('section', { className: 'dsh-skin-section', key: 'options' },
               h('h2', { className: 'dsh-skin-h2' }, t('section.options')),
               h('div', { className: 'dsh-skin-options' },
@@ -4856,7 +4910,12 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
                 promise.catch((error) => {
                   if (!error || error.name === 'AbortError') return;
                   console.warn('[skin-studio] video play failed', error.name, error.message);
-                  recordDebug('video:play-failed', { name: error.name });
+                  recordDebug('video:play-failed', {
+                    name: error.name,
+                    src: String((node.currentSrc || node.src || video.source) || '').slice(-90),
+                    ready: node.readyState,
+                    network: node.networkState
+                  });
                   if (error.name !== 'NotAllowedError') return;
                   autoMutedRef.current = true;
                   try { node.muted = true; } catch (muteError) { /* ignore */ }
@@ -5006,7 +5065,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             h('video', {
               ref: videoRef,
               className: 'dsh-skin-video',
-              src: video.source,
+              src: mediaPath(video.source),
               playsInline: true,
               muted: state.videoMuted,
               loop: state.videoLoop,
@@ -5015,13 +5074,17 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               'data-failed': failed ? 'true' : 'false',
               onError: () => {
                 const node = videoRef.current;
-                console.warn('[skin-studio] video could not be loaded', video.source);
+                const mediaError = node && node.error ? node.error : null;
                 recordDebug('video:error', {
-                  src: String(video.source || '').slice(-80),
-                  code: node ? node.error && node.error.code : null,
-                  network: node ? node.networkState : null,
-                  ready: node ? node.readyState : null
+                  src: String(video.source || '').slice(-90),
+                  resolved: String(node && node.currentSrc || '').slice(0, 120),
+                  origin: String((typeof window !== 'undefined' && window.__skinMediaOrigin) || ''),
+                  code: mediaError ? mediaError.code : 0,
+                  message: mediaError ? String(mediaError.message || '').slice(0, 120) : '',
+                  network: node ? node.networkState : -1,
+                  ready: node ? node.readyState : -1
                 });
+                console.warn('[skin-studio] video could not be loaded', video.source);
                 setFailed(true);
                 store.notify('videoPlaybackError');
               },
@@ -5976,8 +6039,12 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             const mm = h > 0 && m < 10 ? '0' + m : String(m);
             return (h > 0 ? h + ':' : '') + mm + ':' + (sec < 10 ? '0' : '') + sec;
           }
+          // The full control bar is gone: playback is driven by the keyboard
+          // (F7 / F8 / F9) and the clock lives in the composer dock chip. What
+          // is left is a slim, right-aligned seek strip — one third of the
+          // viewport wide, so the picture keeps almost all of its area.
           const bar = h('div', {
-            className: 'dsh-skin-player',
+            className: 'dsh-skin-seekbar',
             'data-scheme': scheme,
             'data-visible': visible ? 'true' : 'false',
             key: 'player',
@@ -6000,44 +6067,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
                 onPointerUp: () => { draggingRef.current = false; setDragging(false); },
                 onPointerCancel: () => { draggingRef.current = false; setDragging(false); },
                 onBlur: () => { draggingRef.current = false; setDragging(false); }
-              }),
-            ),
-            h('div', { className: 'dsh-skin-player-row' },
-              h('button', {
-                type: 'button', className: 'dsh-skin-player-btn',
-                title: t(state.videoPlaying ? 'video.pause' : 'video.play'),
-                'aria-label': t(state.videoPlaying ? 'video.pause' : 'video.play'),
-                'aria-pressed': state.videoPlaying ? 'true' : 'false',
-                onClick: () => store.set({ videoPlaying: !state.videoPlaying })
-              }, h(state.videoPlaying ? IconPause : IconPlay, { size: 15 })),
-              h('span', { className: 'dsh-skin-player-time' }, fmt(progress * duration)),
-              h('span', { className: 'dsh-skin-player-time' }, fmt(duration)),
-              h('div', { className: 'dsh-skin-player-spacer' }),
-              // Centred under the seek bar (see .dsh-skin-player-nav): a compact
-              // prev / index / next capsule, the natural "switch video" spot.
-              h('div', { className: 'dsh-skin-player-nav', key: 'nav' },
-                h('button', {
-                  type: 'button', className: 'dsh-skin-player-btn',
-                  title: t('video.prev'), 'aria-label': t('video.prev'),
-                  disabled: !canStep,
-                  onClick: () => { stepVideo(-1).catch(() => {}); }
-                }, h(IconChevron, { size: 14, dir: 'left' })),
-                h('span', { className: 'dsh-skin-player-count', title: t('video.playlist') }, positionLabel),
-                h('button', {
-                  type: 'button', className: 'dsh-skin-player-btn',
-                  title: t('video.next'), 'aria-label': t('video.next'),
-                  disabled: !canStep,
-                  onClick: () => { stepVideo(1).catch(() => {}); }
-                }, h(IconChevron, { size: 14, dir: 'right' }))
-              ),
-              h('div', { className: 'dsh-skin-player-spacer' }),
-              h('button', {
-                type: 'button', className: 'dsh-skin-player-btn',
-                title: t(state.videoMuted ? 'video.unmute' : 'video.mute'),
-                'aria-label': t(state.videoMuted ? 'video.unmute' : 'video.mute'),
-                'aria-pressed': state.videoMuted ? 'false' : 'true',
-                onClick: () => store.set({ videoMuted: !state.videoMuted })
-              }, h(IconVolume, { size: 15, muted: state.videoMuted }))
+              })
             )
           );
           if (createPortal && typeof document !== 'undefined' && document.body) {
@@ -6065,7 +6095,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
                 // describe as "the interface disappeared by itself".
                 if (!document.body || isTextEntryFocused()) return;
                 document.body.classList.add('dsh-skin-cinema');
-              }, 5000);
+              }, CINEMA_IDLE_MS);
             };
             wakeRef.current = wake;
             const events = ['pointermove', 'pointerdown', 'mousemove', 'mousedown', 'wheel', 'keydown', 'touchstart'];
@@ -6090,6 +6120,112 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           return null;
         }
 
+        function fmtClock(seconds) {
+          if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
+          const h = Math.floor(seconds / 3600);
+          const m = Math.floor((seconds % 3600) / 60);
+          const sec = Math.floor(seconds % 60);
+          const mm = h > 0 && m < 10 ? '0' + m : String(m);
+          return (h > 0 ? h + ':' : '') + mm + ':' + (sec < 10 ? '0' : '') + sec;
+        }
+
+        // The clock replaces the floating player bar: it sits in the composer
+        // dock, where the vault chip used to be, and reads the live <video>
+        // element directly so it needs no shared state with the seek strip.
+        function TimeChip() {
+          useStore(store);
+          useLocale();
+          const video = resolveVideo(store.get());
+          const active = Boolean(video && video.source);
+          const [clock, setClock] = useState({ time: 0, duration: 0 });
+          useEffect(() => {
+            if (!active) return undefined;
+            if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return undefined;
+            let raf = 0;
+            let last = 0;
+            const read = (now) => {
+              raf = window.requestAnimationFrame(read);
+              if (now - last < 250) return;
+              last = now;
+              const node = typeof document !== 'undefined' && typeof document.querySelector === 'function' ? document.querySelector('video.dsh-skin-video') : null;
+              if (!node) return;
+              const time = Number(node.currentTime) || 0;
+              const duration = Number(node.duration) || 0;
+              setClock((prev) => (Math.abs(prev.time - time) < 0.25 && Math.abs(prev.duration - duration) < 0.5 ? prev : { time, duration }));
+            };
+            raf = window.requestAnimationFrame(read);
+            return () => { try { window.cancelAnimationFrame(raf); } catch (error) { /* ignore */ } };
+          }, [active]);
+          if (!active) return null;
+          const playing = Boolean(store.get().videoPlaying);
+          return h('button', {
+            type: 'button',
+            className: 'dsh-skin-clock',
+            title: t('video.clockHint'),
+            onClick: () => { store.set({ videoPlaying: !store.get().videoPlaying }); recordDebug('clock:toggle'); }
+          },
+            h(playing ? IconPause : IconPlay, { size: 12 }),
+            h('span', { className: 'dsh-skin-clock-time' }, fmtClock(clock.time) + ' / ' + fmtClock(clock.duration))
+          );
+        }
+
+        // Hardware playback keys. The media bar used to be the only way to
+        // pause; on a laptop F7/F8/F9 are easier to reach than a floating
+        // control row, and they never cover the picture.
+        function MediaKeys() {
+          useStore(store);
+          useEffect(() => {
+            if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') return undefined;
+            const onKey = (event) => {
+              if (!event || event.defaultPrevented) return;
+              if (event.metaKey || event.ctrlKey || event.altKey) return;
+              const key = event.key;
+              const prev = key === 'F7' || key === 'MediaTrackPrevious' || key === 'MediaPreviousTrack';
+              const play = key === 'F8' || key === 'MediaPlayPause' || key === 'MediaPlay' || key === 'MediaPause';
+              const next = key === 'F9' || key === 'MediaTrackNext';
+              if (!prev && !play && !next) return;
+              // Typing wins: an F-key inside a focused text field is the
+              // user's, not ours.
+              if (isTextEntryFocused()) return;
+              const current = store.get();
+              if (!current.videoId || current.videoId === 'none') return;
+              event.preventDefault();
+              if (prev) { recordDebug('key:prev'); stepVideo(-1).catch(() => {}); return; }
+              if (next) { recordDebug('key:next'); stepVideo(1).catch(() => {}); return; }
+              const playing = !current.videoPlaying;
+              store.set({ videoPlaying: playing });
+              recordDebug('key:play', { playing });
+            };
+            document.addEventListener('keydown', onKey, true);
+            return () => document.removeEventListener('keydown', onKey, true);
+          }, []);
+          return null;
+        }
+
+        // The key-vault chip used to sit in the composer dock, where the clock
+        // now lives. Keeping an entry here means the vault is still reachable
+        // without occupying the row the user watches while a movie plays.
+        function VaultSection() {
+          useLocale();
+          const open = () => {
+            const chip = typeof document !== 'undefined' && typeof document.querySelector === 'function'
+              ? document.querySelector('.bv-chip')
+              : null;
+            if (chip && typeof chip.click === 'function') { chip.click(); recordDebug('vault:open'); return; }
+            store.notify('vaultMissing');
+          };
+          return h('section', { className: 'dsh-skin-section' },
+            h('h2', { className: 'dsh-skin-h2' }, t('section.vault')),
+            h('div', { className: 'dsh-skin-options' },
+              h('button', { type: 'button', className: 'dsh-skin-key-btn', onClick: open },
+                h(IconLink, { size: 12 }),
+                h('span', null, t('vault.open'))
+              )
+            ),
+            h('p', { className: 'dsh-skin-hint' }, t('vault.desc'))
+          );
+        }
+
         function OverlayEntry() {
           const state = useStore(store);
           const wallpaper = resolveWallpaper(state);
@@ -6111,6 +6247,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             h('style', { key: 'styles' }, STYLE_CSS),
             h(ModeController, { key: 'mode' }),
             h(CinemaMode, { key: 'cinema' }),
+            h(MediaKeys, { key: 'media-keys' }),
             h(VideoBackground, { key: 'video-bg' }),
             h(VideoPlayerBar, { key: 'video-player' }),
             videoActive ? h('style', { key: 'video-body' }, videoBodyCss()) : null,
@@ -6142,6 +6279,14 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           order: 5,
           label: () => t('quick.label')
         }, guarded(QuickAction)));
+
+        // The clock lives in the composer dock: that is the one row the user is
+        // already looking at while a wallpaper plays, and it costs no画面。
+        ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
+          name: 'conversation.composer.dock',
+          id: 'skin-studio-clock',
+          order: 19
+        }, guarded(TimeChip)));
 
         ctx.slots.inject('shell.overlay', () => ctx.slots.register({
           name: 'shell.overlay',
