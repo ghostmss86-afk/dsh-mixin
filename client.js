@@ -2345,7 +2345,7 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
             target.closest('button,input,textarea,select,a,[contenteditable="true"],[role="button"],[role="slider"]')) return;
           const fullscreenNow = Boolean(typeof document !== 'undefined' && document.fullscreenElement);
           const inTopBand = Number(event.clientY) <= TOP_BAND_PX;
-          const inPlayer = Boolean(target && typeof target.closest === 'function' && target.closest('.dsh-skin-player'));
+          const inPlayer = Boolean(target && typeof target.closest === 'function' && target.closest('.dsh-skin-player, .dsh-skin-seekbar, .dsh-skin-clock'));
           if (!fullscreenNow && !inTopBand && !inPlayer) return;
           if (!toggleFullscreenPlayback()) return;
           event.preventDefault();
@@ -5948,7 +5948,7 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
             if (!active || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
             const onDown = (event) => {
               if (!event.ctrlKey || event.button !== 0) return;
-              if (event.target && event.target.closest && event.target.closest('.dsh-skin-player')) return;
+              if (event.target && event.target.closest && event.target.closest('.dsh-skin-player, .dsh-skin-seekbar, .dsh-skin-clock')) return;
               const node = videoElementRef.current;
               if (!node || !Number.isFinite(node.duration) || node.duration <= 0) return;
               dragRef.current = { x: event.clientX, time: node.currentTime, duration: node.duration, moved: false };
