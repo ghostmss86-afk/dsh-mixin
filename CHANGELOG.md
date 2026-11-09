@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.23 — 2026-11-10
+
+- **快捷面板换成和 Harness 浮层同源的毛玻璃**：面板底色不再用 `--dsw-alias-bg-overlay`（那是一块 100% 不透明的实心板，所以之前看着像“另一个 App 的弹窗”），改为取侧边栏同一个颜色令牌 `--dsw-specific-sidebar-fill`，以 40% 浓度混进透明，再挂 `--dsw-menu-backdrop-filter`（`blur(40px) saturate(150%)`）——和 DSH 自己的菜单/浮层是同一套配方。有效不透明度约 20%，比侧边栏（约 25%）再透一档，换成亮色、暗色、影院色板都自动跟随，不用另写覆盖。
+- **面板里的控件去掉品牌色，改用 DSH 的中性规则**：筛选 chip 和“白天/夜间/跟随系统”分段控件改成容器 `--dsw-alias-interactive-bg-hover` + 选中项 `--dsw-alias-bg-layer-1` / `--dsw-elevation-soft` / `--dsw-alias-label-primary`，不再是一块品牌蓝；按钮、壁纸缩略图、视频卡的边框统一成 .5px hairline。
+- **不支持 backdrop-filter 时降级**：`@supports not (…)` 回落到 `--dsw-specific-menu`，兜底成不透明菜单面，不会出现“玻璃没生效、字糊在画面上”的情况。
+- 只动 `.dsh-skin-quick` 这一个浮层；设置页、壁纸/视频渲染、播放器、宿主接口一律没碰。
+
 ## 1.0.22 — 2026-11-10
 
 - **小鲸鱼变成真正的进度条**：右下角新增一条短轨道，小鲸鱼按 `currentTime / duration` 从左往右滑，播到结尾就走到底，能直观看到看到第几集、还剩多少。
