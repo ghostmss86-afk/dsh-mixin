@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.17';
+  const PLUGIN_VERSION = '1.0.18';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T00:22';
+  const BUILD = '2026-11-10T01:09';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -477,7 +477,21 @@ window.__ModuleLoader__.load({
         '[data-composer-dock] *{background-color:transparent !important;background-image:none !important;}' +
         '[data-composer-card]{background:transparent !important;background-color:transparent !important;border:none !important;box-shadow:none !important;backdrop-filter:none !important;}' +
         'body[data-ds-dark-theme] [data-composer-dock]{background:rgba(14,16,20,.16) !important;background-color:rgba(14,16,20,.16) !important;border-color:rgba(255,255,255,.10) !important;}' +
-        'body[data-ds-dark-theme] [data-composer-seat]{background:none !important;background-color:transparent !important;backdrop-filter:none !important;}'
+        'body[data-ds-dark-theme] [data-composer-seat]{background:none !important;background-color:transparent !important;backdrop-filter:none !important;}' +
+        // Chat over a movie: one cinema surface for every theme. Light-mode
+        // cards used to be white 38% slabs with dark text, which is exactly the
+        // unreadable combination the user hit. Keep the picture visible, but
+        // make every text-bearing surface dark, translucent and white-on-top.
+        'body.dsh-skin-video-active [data-message-bubble]{background:rgba(8,10,14,.2) !important;background-color:rgba(8,10,14,.2) !important;border:1px solid rgba(255,255,255,.12) !important;color:#fff !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;text-shadow:0 1px 2px rgba(0,0,0,.7);}' +
+        'body.dsh-skin-video-active [data-message-bubble] *{color:#fff !important;text-shadow:inherit;}' +
+        'body.dsh-skin-video-active [data-chat-flow]{color:rgba(255,255,255,.96) !important;}' +
+        'body.dsh-skin-video-active [data-chat-flow] :where(p,li,span,h1,h2,h3,h4,h5,h6,td,th,dt,dd,blockquote,strong,em){color:rgba(255,255,255,.96) !important;text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
+        'body.dsh-skin-video-active [data-chat-flow] a{color:#9cc7ff !important;text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
+        'body.dsh-skin-video-active [data-step-process],body.dsh-skin-video-active [data-turn-process],body.dsh-skin-video-active [data-context-files],body.dsh-skin-video-active [data-context-injection-body],body.dsh-skin-video-active [data-context-form],body.dsh-skin-video-active [data-context-entries],body.dsh-skin-video-active [data-context-sections]{background:rgba(8,10,14,.24) !important;background-color:rgba(8,10,14,.24) !important;border-color:rgba(255,255,255,.12) !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}' +
+        'body.dsh-skin-video-active pre{background:rgba(0,0,0,.42) !important;border-color:rgba(255,255,255,.12) !important;color:#fff !important;}' +
+        'body.dsh-skin-video-active pre code{color:#fff !important;}' +
+        'body.dsh-skin-video-active :not(pre) > code{background:rgba(255,255,255,.14) !important;background-color:rgba(255,255,255,.14) !important;color:#fff !important;}' +
+        'body.dsh-skin-video-active blockquote{background:transparent !important;border-left-color:rgba(255,255,255,.28) !important;color:rgba(255,255,255,.9) !important;}'
       );
     }
 
@@ -487,7 +501,8 @@ window.__ModuleLoader__.load({
       const skin = resolveSkin(state);
       const wallpaper = resolveWallpaper(state);
       const video = resolveVideo(state);
-      const hasBackdrop = Boolean(wallpaper || (video && video.source));
+      const videoBackdrop = Boolean(video && video.source);
+      const hasBackdrop = Boolean(wallpaper || videoBackdrop);
       const tokens = {};
       const add = (name, light, dark) => {
         tokens[name] = { light, dark };
@@ -495,8 +510,10 @@ window.__ModuleLoader__.load({
 
       if (skin.hasPalette) {
         add('--dsw-alias-brand-primary', skin.light.brand, skin.dark.brand);
-        add('--dsw-alias-label-primary', skin.light.label, skin.dark.label);
-        add('--dsw-alias-label-secondary', skin.light.labelSecondary, skin.dark.labelSecondary);
+        if (!videoBackdrop) {
+          add('--dsw-alias-label-primary', skin.light.label, skin.dark.label);
+          add('--dsw-alias-label-secondary', skin.light.labelSecondary, skin.dark.labelSecondary);
+        }
       }
 
       if (!hasBackdrop) {
@@ -513,6 +530,59 @@ window.__ModuleLoader__.load({
       }
 
       const glass = state.glass !== false;
+
+      // A video is a moving, high-contrast picture. The light theme's white
+      // translucent cards turn into low-contrast grey slabs over it (and dark
+      // text disappears into bright frames). While a video backdrop is live,
+      // every surface uses the cinema palette regardless of day/night mode:
+      // dark translucent cards, white labels, light borders. This is the same
+      // treatment the user already gets in dark mode, now unified on video.
+      if (videoBackdrop) {
+        add('--dsw-alias-bg-base', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)');
+        add('--dsw-alias-label-primary', '#ffffff', '#ffffff');
+        add('--dsw-alias-label-secondary', 'rgba(255,255,255,.78)', 'rgba(255,255,255,.78)');
+        add('--dsw-alias-label-tertiary', 'rgba(255,255,255,.64)', 'rgba(255,255,255,.64)');
+        add('--dsw-alias-label-caption', 'rgba(255,255,255,.62)', 'rgba(255,255,255,.62)');
+        add('--dsw-alias-label-dimmed', 'rgba(255,255,255,.5)', 'rgba(255,255,255,.5)');
+        add('--dsw-alias-label-primary-foreground', '#ffffff', '#ffffff');
+        add(
+          '--dsw-alias-bg-layer-1',
+          'rgba(8,10,14,' + (glass ? 0.34 : 0.9) + ')',
+          'rgba(8,10,14,' + (glass ? 0.34 : 0.9) + ')'
+        );
+        add(
+          '--dsw-alias-bg-layer-2',
+          'rgba(8,10,14,' + (glass ? 0.26 : 0.9) + ')',
+          'rgba(8,10,14,' + (glass ? 0.26 : 0.9) + ')'
+        );
+        add(
+          '--dsw-alias-bg-layer-3',
+          'rgba(8,10,14,' + (glass ? 0.3 : 0.92) + ')',
+          'rgba(8,10,14,' + (glass ? 0.3 : 0.92) + ')'
+        );
+        add(
+          '--dsw-alias-bg-layer-4',
+          'rgba(8,10,14,' + (glass ? 0.36 : 0.94) + ')',
+          'rgba(8,10,14,' + (glass ? 0.36 : 0.94) + ')'
+        );
+        add('--dsw-alias-bg-overlay', 'rgba(8,10,14,.94)', 'rgba(8,10,14,.94)');
+        add(
+          '--dsw-specific-sidebar-fill',
+          'rgba(8,10,14,' + (glass ? 0.5 : 0.96) + ')',
+          'rgba(8,10,14,' + (glass ? 0.5 : 0.96) + ')'
+        );
+        add('--dsw-alias-border-l1', 'rgba(255,255,255,.14)', 'rgba(255,255,255,.14)');
+        add('--dsw-alias-border-l2', 'rgba(255,255,255,.2)', 'rgba(255,255,255,.2)');
+        add('--dsw-alias-border-l3', 'rgba(255,255,255,.24)', 'rgba(255,255,255,.24)');
+        add('--dsw-alias-border-l4', 'rgba(255,255,255,.3)', 'rgba(255,255,255,.3)');
+        add('--dsw-alias-markdown-code-block', 'rgba(0,0,0,.42)', 'rgba(0,0,0,.42)');
+        add('--dsw-alias-markdown-code-block-banner', 'rgba(255,255,255,.08)', 'rgba(255,255,255,.08)');
+        add('--dsw-alias-markdown-inline-code', 'rgba(255,255,255,.14)', 'rgba(255,255,255,.14)');
+        add('--dsw-alias-markdown-tag', 'rgba(255,255,255,.14)', 'rgba(255,255,255,.14)');
+        add('--dsw-alias-link', '#9cc7ff', '#9cc7ff');
+        return tokens;
+      }
+
       add('--dsw-alias-bg-base', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)');
       add(
         '--dsw-alias-bg-layer-1',

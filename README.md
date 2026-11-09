@@ -2,7 +2,7 @@
 
 [![check](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml/badge.svg)](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.0.17-informational.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.0.18-informational.svg)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-DSH%200.2.2--rc.1-lightgrey.svg)](#兼容性)
 
 皮肤与壁纸是 DeepSeek Harness 的界面插件。它给界面换一套配色，并给聊天区铺上渐变、图片或视频壁纸；视频会整理成有封面、剧名和集号的卡片，文件夹可以整季按顺序播放。改动立即生效，选择保存在当前浏览器里。
@@ -28,6 +28,7 @@
 | 硬件按键 | F7 上一个 / F8 播放暂停 / F9 下一个（也认系统媒体键）；时间显示在输入框那一行的胶囊里，点一下即暂停 | 光标在输入框时不抢键 |
 | 收藏与筛选 | 「全部 / 收藏 / 我的照片 / 渐变」四个筛选，点星标收藏 | — |
 | 柔化壁纸 | 在壁纸上叠一层柔光，保证文字可读 | 0–50%，默认 12% |
+| 视频背景对比度 | 视频播放时聊天卡片、用户气泡、工具/文件卡片统一换成影院色板：深色半透明底 + 白色文字，日间模式也不会出现白底深字 | 仅视频背景；图片壁纸与无背景不变 |
 | 半透明面板 | 让聊天卡片与侧栏透出壁纸 | 开关 |
 | 实时预览 | 设置页显示当前皮肤与壁纸的缩略效果 | — |
 | 恢复默认 | 只重置皮肤、壁纸与选项，自定义内容保留 | — |
