@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.20';
+  const PLUGIN_VERSION = '1.0.21';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T01:52';
+  const BUILD = '2026-11-10T02:06';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2306,11 +2306,11 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-whale:hover{opacity:1;}
 .dsh-skin-whale[data-dragging="true"]{cursor:grabbing;transform:scale(1.2);opacity:1;}
 .dsh-skin-whale svg{display:block;filter:drop-shadow(0 0 6px rgba(77,107,254,.5));}
-.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:5px;z-index:40;display:flex;align-items:center;gap:5px;transition:opacity .2s ease;}
+.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:5px;z-index:40;display:flex;align-items:center;gap:12px;transition:opacity .2s ease;}
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
 .dsh-skin-whale-wrap .dsh-skin-whale{position:static;}
-.dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.66);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
-.dsh-skin-whale-episode{font-size:10px;line-height:1;color:rgba(255,255,255,.78);font-variant-numeric:tabular-nums;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.92);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.dsh-skin-whale-episode{font-size:10px;line-height:1;color:#ffffff;font-variant-numeric:tabular-nums;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 .dsh-skin-whale-wrap .dsh-skin-player-hud{position:absolute;right:0;bottom:26px;white-space:nowrap;}
 /* The vault chip moved into settings; its slot in the dock is the clock now. */
 body.dsh-skin-video-active .bv-chip{display:none !important;}
@@ -5179,6 +5179,11 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const audioRef = useRef(null);
           const [failed, setFailed] = useState(false);
           const [sidecarBroken, setSidecarBroken] = useState(false);
+          // Voice input (the mic button in the composer) records the room, so
+          // the movie must get out of the way while it is open. The harness
+          // exposes its phase as data-voice-activity: requesting -> recording
+          // -> transcribing. Duck only while the microphone can still hear.
+          const [voiceActive, setVoiceActive] = useState(false);
           // True while the element is muted only because autoplay-with-sound was
           // refused. Cleared by the first gesture, which turns the sound back on.
           const autoMutedRef = useRef(false);
@@ -5192,6 +5197,24 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             setFailed(false);
             setSidecarBroken(false);
           }, [video && video.source]);
+
+          useEffect(() => {
+            if (typeof document === 'undefined' || typeof MutationObserver !== 'function') return undefined;
+            const read = () => {
+              const node = document.querySelector('[data-voice-activity]');
+              const phase = node ? String(node.getAttribute('data-voice-activity') || '') : '';
+              setVoiceActive(phase === 'requesting' || phase === 'recording');
+            };
+            read();
+            const observer = new MutationObserver(read);
+            observer.observe(document.body, {
+              subtree: true,
+              attributes: true,
+              childList: true,
+              attributeFilter: ['data-voice-activity']
+            });
+            return () => observer.disconnect();
+          }, []);
 
           // Claim the OS "Now Playing" slot so F7/F8/F9 reach this player; it
           // only holds the keys while we are the active session, which is
@@ -5226,15 +5249,18 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             if (!node) return;
             const audio = audioRef.current;
             const muted = state.videoMuted === true;
+            const baseVolume = clamp(Number(state.videoVolume), 0, 1);
+            // 2% is "almost inaudible" but still proves the track is alive.
+            const effectiveVolume = voiceActive ? Math.min(baseVolume, 0.02) : baseVolume;
             node.muted = hasSidecar ? true : muted;
             node.loop = state.videoLoop;
-            try { node.volume = state.videoVolume; } catch (error) { /* ignore */ }
+            try { node.volume = effectiveVolume; } catch (error) { /* ignore */ }
             if (audio) {
               audio.muted = muted;
               audio.loop = state.videoLoop;
-              try { audio.volume = state.videoVolume; } catch (error) { /* ignore */ }
+              try { audio.volume = effectiveVolume; } catch (error) { /* ignore */ }
             }
-          }, [state.videoMuted, state.videoLoop, state.videoVolume, hasSidecar, video && video.source]);
+          }, [state.videoMuted, state.videoLoop, state.videoVolume, hasSidecar, video && video.source, voiceActive]);
 
           useEffect(() => {
             const node = videoRef.current;
@@ -6444,8 +6470,8 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             'data-scheme': scheme,
             'data-visible': showChip ? 'true' : 'false'
           },
-            h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
             episodeTag ? h('span', { className: 'dsh-skin-whale-episode', key: 'episode', title: episodeTag }, episodeTag) : null,
+            h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
             whale,
             hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null
           );
