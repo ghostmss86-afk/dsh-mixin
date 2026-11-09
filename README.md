@@ -2,7 +2,7 @@
 
 [![check](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml/badge.svg)](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.0.1-informational.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.0.5-informational.svg)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-DSH%200.2.2--rc.1-lightgrey.svg)](#兼容性)
 
 皮肤与壁纸是 DeepSeek Harness 的界面插件。它给界面换一套配色，并给聊天区铺上渐变、图片或视频壁纸；改动立即生效，选择保存在当前浏览器里。
@@ -17,7 +17,10 @@
 | 自定义皮肤 | 自选强调色与背景，保存后出现在「我的皮肤」 | 最多 12 套 |
 | 渐变壁纸 | 内置渐变背景，随浅色 / 深色主题变化 | 9 套 |
 | 图片壁纸 | 上传本地图片，或粘贴图片链接 | 最多 10000 张 |
-| 视频壁纸 | 本地视频铺满聊天区，可暂停、静音、调音量、循环播放 | 最多 10000 个；非 AAC 音轨需要 ffmpeg |
+| 视频壁纸 | 本地视频铺满聊天区：暂停 / 静音 / 音量 / 循环，进度条下方 `‹ n / N ›` 切上一个·下一个 | 最多 10000 个；非 AAC 音轨需要 ffmpeg |
+| 视频批量导入 | 一次多选、整目录导入、文件与文件夹拖拽；导入即落真实路径 | 设置页与左下角快捷面板同能力 |
+| 全屏播放 | 双击页面顶部空白条或播放器控制条进入全屏，再双击 / Esc 退出 | 触摸屏双击同样有效 |
+| 播放自检 | 设置页直接写出「原文件 / 音轨 / 画面静音 / 声音来源」，一键复制 | 无需打开控制台 |
 | 收藏与筛选 | 「全部 / 收藏 / 我的照片 / 渐变」四个筛选，点星标收藏 | — |
 | 柔化壁纸 | 在壁纸上叠一层柔光，保证文字可读 | 0–50%，默认 12% |
 | 半透明面板 | 让聊天卡片与侧栏透出壁纸 | 开关 |
@@ -28,6 +31,10 @@
 
 前置条件：DeepSeek Harness `0.2.2-rc.1`（本机验证版本）。视频壁纸的音频兜底需要 `ffmpeg` 与 `ffprobe` 在 `PATH` 里；没有时视频无声，画面正常。
 
+### 方式零：插件市场（收录审核中）
+
+已按官方目录规范提交收录，条目见 [`docs/market-entry.yml`](docs/market-entry.yml)。上架前请用下面任一方式安装。
+
 ### 方式一：从 GitHub 安装
 
 ```bash
@@ -36,7 +43,13 @@ dsh plugin --profile web add github:ghostmss86-afk/dsh-skin-studio
 
 装完重启 DeepSeek Harness。之后升级用同一条命令加 `@<commit>` 或重装。
 
-### 方式二：profile link（跟随仓库更新）
+### 方式二：从 npm 安装（发布后可用）
+
+```bash
+dsh plugin --profile web add dsh-plugin-skin-studio
+```
+
+### 方式三：profile link（跟随仓库更新）
 
 ```bash
 git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-studio
@@ -59,7 +72,7 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 
 在该 profile 目录执行 `pnpm install`，然后重启 DeepSeek Harness。
 
-### 方式三：直接放目录
+### 方式四：直接放目录
 
 把仓库内容放到 profile 的 `node_modules/dsh-plugin-skin-studio`，bundle 配置同上。刷新页面即可生效。
 
@@ -112,7 +125,11 @@ skin-studio/
 │   └── zh.json
 ├── docs/
 │   ├── preview.webp      # 界面截图
+│   ├── market-entry.yml  # 插件市场的收录条目
 │   └── video-playback.md # 视频声音/进度条的不变量与回归清单
+├── scripts/
+│   ├── guard.mjs         # 媒体不变量静态检查
+│   └── guard.rules.json  # 规则即数据
 ├── icon.svg
 ├── package.json
 ├── CHANGELOG.md
