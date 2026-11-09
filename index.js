@@ -88,7 +88,7 @@ async function ensureAudio(source) {
   try {
     const existing = await stat(output);
     if (existing.isFile() && existing.size > 1024) {
-      return { codec, url: `${ROUTE_PREFIX}/audio/${basename(output)}`, file: 'file://' + encodeURI(output), reason: 'cached' };
+      return { codec, url: `${ROUTE_PREFIX}/audio/${basename(output)}`, reason: 'cached' };
     }
   } catch (error) { /* not cached */ }
   await mkdir(CACHE_DIR, { recursive: true });
@@ -99,7 +99,7 @@ async function ensureAudio(source) {
     '-c:a', 'aac', '-b:a', '192k', '-ac', '2',
     '-movflags', '+faststart', output
   ], { capture: true });
-  return { codec, url: `${ROUTE_PREFIX}/audio/${basename(output)}`, file: 'file://' + encodeURI(output), reason: 'transcoded' };
+  return { codec, url: `${ROUTE_PREFIX}/audio/${basename(output)}`, reason: 'transcoded' };
 }
 
 

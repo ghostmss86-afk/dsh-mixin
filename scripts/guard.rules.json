@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "R001",
+      "severity": "error",
+      "title": "音频地址不能是 file://",
+      "why": "http(s) 页面里 <audio src=\"file://...\"> 永远加载失败；它会把「没有侧车」伪装成「有侧车但静音」，于是视频被静音、声音又出不来，比不修更糟。",
+      "hint": "宿主只在真的产出可播放资源时返回 http 地址，其余情况返回空字符串，让客户端使用原生音轨。",
+      "file": "\\.(js|mjs|ts|tsx)$",
+      "forbid": "['\"]file://"
+    },
+    {
+      "id": "R002",
+      "severity": "error",
+      "title": "不得把「备用字段」当成可用地址",
+      "why": "data.url || data.file 这种写法让占位字段变成真实音源，掩盖了「宿主没有产出」的事实。",
+      "hint": "只接受宿主明确产出的 url；空值表示走原生音轨。",
+      "file": "\\.(js|mjs|ts|tsx)$",
+      "forbid": "\\bdata\\.url\\s*\\|\\|\\s*data\\.file\\b"
+    },
+    {
+      "id": "R003",
+      "severity": "error",
+      "title": "文件/目录导入必须绑定真实路径",
+      "why": "Electron 32+ 移除 File.path，input/拖拽导入的 File 没有磁盘路径；存成 Blob 后宿主无法 ffprobe/ffmpeg，E-AC-3 之类音轨必然无声，且不可自愈。",
+      "hint": "入库前用「文件名 + 精确字节数」向宿主换路径（本项目 /relink），命中就按路径入库。",
+      "file": "\\.(js|mjs|ts|tsx)$",
+      "forbid": "webkitdirectory|type\\s*=\\s*[\"']file[\"']",
+      "unless": "/relink|lookupVideoPath|recoverVideoPath"
+    },
+    {
+      "id": "R004",
+      "severity": "error",
+      "title": "macOS 选择器不得按 public.movie 过滤",
+      "why": ".mkv / .ts / .m2ts 不属于 public.movie，对话框会把它们置灰，用户看到的是「只能一个个加 / 根本选不中」。",
+      "hint": "去掉 of type {\"public.movie\"}，选完再按扩展名白名单过滤。",
+      "file": "\\.(js|mjs|ts|tsx|applescript|scpt)$",
+      "forbid": "public\\.movie"
+    },
+    {
+      "id": "R005",
+      "severity": "error",
+      "title": "侧车存在不等于侧车可用",
+      "why": "只要 audioUrl 非空就静音视频，侧车一 404 就变成彻底无声，而且不会自愈。",
+      "hint": "用 usableAudioUrl() 判定，并在 <audio onError> 里把 muted 交还给视频。",
+      "file": "\\.(js|mjs|ts|tsx)$",
+      "forbid": "muted\\s*=\\s*hasSidecar\\s*\\?",
+      "unless": "sidecarBroken"
+    },
+    {
+      "id": "R006",
+      "severity": "warn",
+      "title": "视频壁纸下 composer 不要毛玻璃",
+      "why": "backdrop-filter 会把背景视频与字幕糊掉，用户看到的是「整片区域发灰」。",
+      "hint": "videoBodyCss() 里把 [data-composer-seat] 的 background/backdrop-filter/box-shadow 置空。",
+      "file": "\\.(js|mjs|ts|tsx|css)$",
+      "forbid": "backdrop-filter\\s*:\\s*(?!none)[a-z]"
+    },
+    {
+      "id": "R007",
+      "severity": "warn",
+      "title": "静音不要持久化",
+      "why": "把「上次静音」写进持久化状态，用户重启后仍然没声音，会误判成播放故障。",
+      "hint": "videoMuted 只作为会话状态，normalizeState 与持久化快照里都固定为 false。",
+      "skipLine": "onClick|onChange|onInput|toggle",
+      "file": "(client|renderer|app)\\.(js|mjs|ts|tsx)$",
+      "forbid": "videoMuted\\s*:(?!\\s*false\\b)"
+    },
+    {
+      "id": "R008",
+      "severity": "warn",
+      "title": "自愈失败要有可见出口",
+      "why": "静默重试会把确定性故障变成「偶尔没声音」，下一轮排查成本翻倍。",
+      "hint": "找不到路径 / 转码失败时提示用户，并给「手动指定原文件」的入口。",
+      "file": "(client|renderer|app)\\.(js|mjs|ts|tsx)$",
+      "forbid": "catch\\s*(\\([^)]*\\))?\\s*\\{\\s*\\}",
+      "unless": "notify|console\\.(warn|error)"
+    }
+  ]
+}

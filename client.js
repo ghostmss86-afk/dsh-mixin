@@ -524,7 +524,10 @@ window.__ModuleLoader__.load({
         videoId: state.videoId,
         videoFavorites: state.videoFavorites,
         videoPlaying: state.videoPlaying,
-        videoMuted: state.videoMuted,
+        // Never persist the mute flag: restoring it is exactly how "no sound
+        // after restart" comes back. Reading already forces false; writing
+        // false keeps the stored blob honest for anything else that reads it.
+        videoMuted: false,
         videoVolume: state.videoVolume,
         videoLoop: state.videoLoop,
         videoAudioVersion: 2,

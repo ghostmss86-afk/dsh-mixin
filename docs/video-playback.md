@@ -109,3 +109,29 @@ __skinStudioDiag()
 ```
 
 `verdict` 直接给出结论：`MUTED with no audible sidecar` / `paused (playback blocked or toggled off)` / `playing`。
+
+---
+
+## 六、自动检查（防复发）
+
+上面这些不变量不靠记忆，靠 `scripts/guard.mjs` 静态检查，CI 与 `pre-push` 都会跑：
+
+```bash
+npm run guard        # 等价于 node scripts/guard.mjs --root . --rules scripts/guard.rules.json
+```
+
+它会对本仓库代码里的历史反模式直接报错并给出「为什么 / 怎么改」：
+
+| 规则 | 拦什么 |
+| --- | --- |
+| R001 | 出现 `file://` 媒体地址 |
+| R002 | `data.url \|\| data.file` 这类"备用字段当音源" |
+| R003 | `webkitdirectory` / `<input type=file>` 存在但仓库里没有 `relink` 路径找回 |
+| R004 | AppleScript 里 `public.movie` 过滤 |
+| R005 | `muted = hasSidecar ?` 但没有 `sidecarBroken` 兜底 |
+| R006 | composer 区域未清除 `backdrop-filter` |
+| R007 | `videoMuted` 被写入非 `false` 的值 |
+| R008 | 空的 `catch`，自愈失败静默 |
+
+规则来源与事故复盘在另一个仓库：`ghostmss86-afk/engineering-lessons`（`lessons/2026-11-silent-video-wallpaper.md`）。
+改规则请改那边再同步过来，不要在本地偷偷放宽。

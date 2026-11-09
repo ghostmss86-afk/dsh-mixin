@@ -133,6 +133,17 @@ skin-studio/
 - `index.js` 注册 `/api/skin-studio/media` 前缀路由：`ping`、`prepare`（AAC 侧车）、`video`（Range 流）、`audio/*`、`proxy` / `proxy-file`（容器转封装）、`pick-folder`
 - `cordis.patch.yml` 把插件插入 profile 的 loader 层
 
+## 开发
+
+```bash
+npm run check     # node --check index.js client.js
+npm run guard     # 媒体不变量静态检查（CI 与 pre-push 同款）
+```
+
+`scripts/guard.mjs` 与规则来自 [engineering-lessons](https://github.com/ghostmss86-afk/engineering-lessons)，
+拦的是这个插件历史上真实踩过的坑（`file://` 音源、丢路径的 Blob 导入、`public.movie` 过滤等）。
+`docs/video-playback.md` 是这些坑的完整说明与回归清单。
+
 ## 反馈
 
 - 问题与建议：仓库 [Issues](https://github.com/ghostmss86-afk/dsh-skin-studio/issues)

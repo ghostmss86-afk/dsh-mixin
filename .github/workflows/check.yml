@@ -23,3 +23,5 @@ jobs:
       - name: package.json is valid and files exist
         run: |
           node -e "const p=require('./package.json');const fs=require('fs');p.files.forEach(f=>{if(!f.includes('*')&&!fs.existsSync(f))throw new Error('missing '+f)});console.log('package ok',p.name,p.version)"
+      - name: Media invariants (engineering-lessons guard)
+        run: node scripts/guard.mjs --root . --rules scripts/guard.rules.json
