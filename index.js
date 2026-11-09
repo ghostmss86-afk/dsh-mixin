@@ -10,12 +10,12 @@
  * the compatible track.
  */
 import { basename, join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { mkdir, stat } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
 import { Readable } from 'node:stream';
 
 const ROUTE_PREFIX = '/api/skin-studio/media';
@@ -182,12 +182,21 @@ function mimeFor(file) {
   return 'video/mp4';
 }
 
+const VIDEO_EXT_RE = /\.(mp4|m4v|webm|mov|mkv|avi|mpg|mpeg|ts|m2ts|ogv|ogg|wmv|flv|3gp)$/i;
+function isVideoName(name) {
+  return VIDEO_EXT_RE.test(String(name || ''));
+}
+
 async function pickVideo() {
-  const script = 'POSIX path of (choose file with prompt "选择视频壁纸" of type {"public.movie"})';
+  // No `of type {"public.movie"}` filter: macOS does not classify .mkv/.ts/.m2ts
+  // as public.movie, so filtered dialogs grey those files out and users cannot
+  // pick their shows at all. Filter by extension on our side instead.
+  const script = 'POSIX path of (choose file with prompt "选择视频壁纸")';
   try {
     const result = await run('osascript', ['-e', script]);
     const source = (result.stdout || '').trim();
     if (!source) return { ok: false, canceled: true };
+    if (!isVideoName(source)) return { ok: false, reason: 'not-a-video' };
     const info = await stat(source);
     return { ok: true, path: source, name: basename(source), size: info.size };
   } catch (error) {
@@ -196,14 +205,56 @@ async function pickVideo() {
   }
 }
 
+/**
+ * Recover the on-disk path of an already-imported video.
+ *
+ * Electron 32+ removed `File.path`, so videos added through a plain
+ * <input type=file> end up as multi-gigabyte blobs in IndexedDB with no path.
+ * Without a path this host cannot probe the audio, which is why such a video
+ * can play its picture (H.264 is supported) but stay silent (E-AC-3/DTS are
+ * not). Given the file name we already know, look for it where users keep
+ * videos and hand the path back so the client can upgrade the record.
+ */
+function findOriginalFile(name, size) {
+  if (!name || name.length > 200 || /[\\/\0*?]/.test(name)) return Promise.resolve(null);
+  const roots = ['Downloads', 'Desktop', 'Movies', 'Documents', 'Pictures'].map((dir) => join(homedir(), dir));
+  const wanted = Number(size) || 0;
+  // The client stores a display name without the extension ("Show.S01E01...").
+  const patterns = [name, `${name}.*`];
+  // One `find` over every root, exact byte size, `-quit` on the first hit:
+  // the startup repair sweep runs this per pathless record, so it has to stay
+  // in the ~100ms range. `-size Nc` is exact bytes, which is also what keeps
+  // us from binding the wrong release of the same episode.
+  const args = [...roots, '-maxdepth', '8', '-type', 'f', '('];
+  patterns.forEach((pattern, index) => {
+    if (index > 0) args.push('-o');
+    args.push('-name', pattern);
+  });
+  args.push(')');
+  if (wanted > 0) args.push('-size', `${wanted}c`);
+  args.push('-print', '-quit');
+  return new Promise((resolve) => {
+    execFile('find', args, { timeout: 9000, maxBuffer: 1 << 20 }, (error, stdout) => {
+      const first = String(stdout || '').split('\n').map((line) => line.trim()).filter(Boolean)[0];
+      if (!first) return resolve(null);
+      stat(first).then((info) => {
+        if (!info.isFile()) return resolve(null);
+        if (wanted > 0 && info.size !== wanted) return resolve(null);
+        resolve({ path: first, name, size: info.size });
+      }).catch(() => resolve(null));
+      if (error && !stdout) return resolve(null);
+    });
+  });
+}
+
 async function pickVideos() {
   // Multi-select variant used by the "add local videos" tile: one dialog,
   // many files, real POSIX paths (needed for host streaming + audio probing).
   const script = [
-    'set theFiles to choose file with prompt "选择视频壁纸" of type {"public.movie"} with multiple selections allowed',
+    'set theFiles to choose file with prompt "选择视频壁纸" with multiple selections allowed',
     'set out to ""',
     'repeat with f in theFiles',
-    'set out to out & (POSIX path of f) & linefeed',
+    'set out to out & (POSIX path of (contents of f)) & linefeed',
     'end repeat',
     'return out'
   ].join('\n');
@@ -215,7 +266,7 @@ async function pickVideos() {
     for (const source of paths) {
       try {
         const info = await stat(source);
-        if (!info.isFile()) continue;
+        if (!info.isFile() || !isVideoName(source)) continue;
         files.push({ path: source, name: basename(source), size: info.size });
       } catch (error) { /* skip vanished file */ }
     }
@@ -238,12 +289,14 @@ async function pickVideoFolder() {
       for (const entry of entries) {
         const full = join(dir, entry.name);
         if (entry.isDirectory()) { await walk(full); continue; }
-        if (!/\.(mp4|m4v|webm|mov|mkv|avi|mpg|mpeg|ts|m2ts|ogv|ogg|wmv|flv|3gp)$/i.test(entry.name)) continue;
+        if (!isVideoName(entry.name)) continue;
         const info = await stat(full);
         files.push({ path: full, name: entry.name, size: info.size });
       }
     };
     await walk(folder);
+    // Deterministic playlist: folders come back in readdir order otherwise.
+    files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     return { ok: true, folder, files };
   } catch (error) {
     if (/User canceled|-128/i.test(String(error && error.message || ''))) return { ok: false, canceled: true };
@@ -348,6 +401,27 @@ export function apply(ctx) {
           }
         });
       }
+      // The plugin posts its own runtime diagnostics here so the state of a
+      // silent video can be read from disk instead of asking the user to open
+      // a console they do not have. GET returns the last report.
+      if (url.pathname === `${ROUTE_PREFIX}/report`) {
+        if ((request.method || 'GET').toUpperCase() === 'POST') {
+          try {
+            const body = await request.text();
+            await mkdir(CACHE_DIR, { recursive: true });
+            await writeFile(join(CACHE_DIR, 'diag.json'), String(body || '{}').slice(0, 20000), 'utf8');
+            return json({ ok: true });
+          } catch (error) {
+            return json({ ok: false, error: String((error && error.message) || error) }, 500);
+          }
+        }
+        try {
+          const text = await readFile(join(CACHE_DIR, 'diag.json'), 'utf8');
+          return new Response(text, { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+        } catch (error) {
+          return json({ ok: false, reason: 'no-report' });
+        }
+      }
       if (url.pathname === `${ROUTE_PREFIX}/ping`) {
         return json({ ok: true, service: 'skin-studio-media' });
       }
@@ -374,6 +448,17 @@ export function apply(ctx) {
           return json(await pickVideoFolder());
         } catch (error) {
           return json({ ok: false, error: String(error && error.message || error) }, 500);
+        }
+      }
+      if (url.pathname === `${ROUTE_PREFIX}/relink`) {
+        const name = url.searchParams.get('name') || '';
+        const size = Number(url.searchParams.get('size')) || 0;
+        try {
+          const found = await findOriginalFile(name, size);
+          if (!found) return json({ ok: false, reason: 'not-found' });
+          return json({ ok: true, ...found });
+        } catch (error) {
+          return json({ ok: false, reason: 'error', error: String((error && error.message) || error) });
         }
       }
       if (url.pathname === `${ROUTE_PREFIX}/pick-many`) {

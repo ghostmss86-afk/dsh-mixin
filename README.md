@@ -71,7 +71,11 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 - 入口二：设置 → 皮肤与壁纸
 - 皮肤：点选预设，或在「自定义皮肤」里配色后保存，最多 12 套
 - 壁纸：选渐变、上传图片或粘贴图片链接；点缩略图左侧星标收藏
-- 视频壁纸：添加本地视频，播放器支持暂停、静音、音量与循环
+- 视频壁纸：添加本地视频，播放器支持暂停、静音、音量与循环，进度条下方 `‹ n / N ›` 直接切上一个 / 下一个
+- 视频批量上传：和图片一样一次多选，或点加号磁贴右上角的文件夹按钮直接导入整个目录（设置页和左下角快捷面板都有），也可以把文件 / 文件夹拖到磁贴
+- 视频导入一律落真实文件路径：拖拽 / 普通文件框也会用「文件名 + 字节数」自动找回磁盘路径，避免退化成无声的 blob 记录
+- 视频全屏：双击页面顶部空白条（或播放器控制条）进入全屏，再双击 / Esc 退出；播放时输入框区域保持透明，不糊字幕
+- 视频没有声音时：设置页的「自检」行会直接写出原因（原文件 / 音轨 / 画面静音 / 声音来源）；卡片左下角的链接按钮可以手动重新关联原文件，插件启动时也会按「文件名 + 字节数」自动找回
 - 选项：「柔化壁纸」滑块与「半透明面板」开关
 
 ## 数据与联网
@@ -90,8 +94,9 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 
 ## 已知限制
 
-- HEVC / H.265 在 Electron 的 Chromium 里能播放，但不能任意跳转进度；需要拖动进度条时请换 H.264
-- E-AC-3、DTS、TrueHD 等音轨 Chromium 无法解码，插件会用 ffmpeg 生成 AAC 侧车；缺少 ffmpeg 时视频无声
+- HEVC / H.265 在 Electron 的 Chromium 里播放不流畅、跳转进度也不可靠；插件检测到后会后台转成 H.264 代理再播，转码完成时会自动回到原来的播放位置
+- E-AC-3、DTS、TrueHD 等音轨 Chromium 无法解码，插件会用 ffmpeg 生成 AAC 侧车；宿主没能提供侧车时，画面会直接用视频元素自己的音轨，而不是整体静音
+- 声音与进度条的约束、回归清单和历史故障见 [docs/video-playback.md](docs/video-playback.md)
 - 「选择视频文件 / 选择文件夹」使用 macOS 的 `osascript`；其他系统请用设置面板里的文件选择入口
 - 自定义皮肤上限 12 套，自定义壁纸与视频各上限 10000 条
 
@@ -105,7 +110,9 @@ skin-studio/
 ├── locale/
 │   ├── en.json
 │   └── zh.json
-├── docs/preview.webp  # 界面截图
+├── docs/
+│   ├── preview.webp      # 界面截图
+│   └── video-playback.md # 视频声音/进度条的不变量与回归清单
 ├── icon.svg
 ├── package.json
 ├── CHANGELOG.md

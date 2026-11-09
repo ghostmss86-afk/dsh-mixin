@@ -29,7 +29,13 @@ window.__ModuleLoader__.load({
     }
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.1';
+  const PLUGIN_VERSION = '1.0.5';
+  // Shown in Settings next to the version, and returned by
+  // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
+  // back": the Web GUI listens on a NEW port on every launch, so a plain page
+  // refresh can still be served from the previous build's HTTP cache. Check
+  // this stamp before debugging anything else.
+  const BUILD = '2026-11-09T19:26';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -317,12 +323,14 @@ window.__ModuleLoader__.load({
         'html,body{background-color:transparent !important;background-image:none !important;}' +
         'body[data-ds-dark-theme]{background-color:transparent !important;background-image:none !important;}' +
         '#root,#app,#__next,[data-dsh-root]{background-color:transparent !important;background-image:none !important;}' +
-        '[data-composer-seat]{background:linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.55) 45%,rgba(255,255,255,.82) 100%) !important;background-color:transparent !important;border-radius:24px !important;backdrop-filter:blur(18px) saturate(1.12);-webkit-backdrop-filter:blur(18px) saturate(1.12);}' +
-        '[data-composer-dock]{background:rgba(255,255,255,.10) !important;background-color:rgba(255,255,255,.10) !important;border:1px solid rgba(255,255,255,.20) !important;box-shadow:0 12px 36px rgba(0,0,0,.10) !important;backdrop-filter:blur(28px) saturate(1.18);-webkit-backdrop-filter:blur(28px) saturate(1.18);}' +
+        // The composer band stays glass-free over a video: any blur or gradient
+        // here sits on top of the picture and hides burned-in subtitles.
+        '[data-composer-seat]{background:none !important;background-color:transparent !important;border-radius:24px !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;box-shadow:none !important;}' +
+        '[data-composer-dock]{background:rgba(255,255,255,.06) !important;background-color:rgba(255,255,255,.06) !important;border:1px solid rgba(255,255,255,.18) !important;box-shadow:0 10px 30px rgba(0,0,0,.10) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}' +
         '[data-composer-dock] *{background-color:transparent !important;background-image:none !important;}' +
         '[data-composer-card]{background:transparent !important;background-color:transparent !important;border:none !important;box-shadow:none !important;backdrop-filter:none !important;}' +
-        'body[data-ds-dark-theme] [data-composer-dock]{background:rgba(18,20,24,.24) !important;background-color:rgba(18,20,24,.24) !important;border-color:rgba(255,255,255,.10) !important;}' +
-        'body[data-ds-dark-theme] [data-composer-seat]{background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.40) 45%,rgba(0,0,0,.70) 100%) !important;background-color:transparent !important;}'
+        'body[data-ds-dark-theme] [data-composer-dock]{background:rgba(14,16,20,.16) !important;background-color:rgba(14,16,20,.16) !important;border-color:rgba(255,255,255,.10) !important;}' +
+        'body[data-ds-dark-theme] [data-composer-seat]{background:none !important;background-color:transparent !important;backdrop-filter:none !important;}'
       );
     }
 
@@ -465,7 +473,10 @@ window.__ModuleLoader__.load({
         videoId: typeof state.videoId === 'string' ? state.videoId : 'none',
         videoFavorites: (Array.isArray(state.videoFavorites) ? state.videoFavorites : []).filter((id) => typeof id === 'string').slice(0, 500),
         videoPlaying: state.videoPlaying !== false,
-        videoMuted: Number(state.videoAudioVersion) >= 2 ? state.videoMuted === true : false,
+        // Mute is a session-only preference for a wallpaper. Restoring a
+        // persisted mute is exactly how "no sound" gets re-reported after a
+        // restart, so a fresh load always starts audible.
+        videoMuted: false,
         videoVolume: Number.isFinite(Number(state.videoVolume)) ? clamp(Number(state.videoVolume), 0, 1) : 0.45,
         videoLoop: state.videoLoop !== false,
         videoAudioVersion: 2,
@@ -928,6 +939,17 @@ window.__ModuleLoader__.load({
       });
     }
 
+    async function idbDeleteVideoBlob(id) {
+      const db = await openWallpaperDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('videoBlobs', 'readwrite');
+        tx.objectStore('videoBlobs').delete(id);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error || new Error('IndexedDB blob delete failed')); };
+        tx.onabort = () => { db.close(); reject(tx.error || new Error('IndexedDB blob delete aborted')); };
+      });
+    }
+
     async function idbClearVideos() {
       const db = await openWallpaperDb();
       const names = videoStoreNames(db);
@@ -1240,15 +1262,26 @@ window.__ModuleLoader__.load({
       'notice.skinLimit': 'You can keep up to 12 custom skins.',
       'notice.wallpaperLimit': 'You have reached the custom wallpaper limit.',
       'section.video': 'Video wallpaper',
-      'section.video.desc': 'Use any local video (any size, any length) as the full-screen Harness background. It streams straight from disk, not copied into storage. Sound starts after you press play.',
+      'section.video.desc': 'Use any local video (any size, any length) as the full-screen Harness background. It streams straight from disk, not copied into storage. Add several at once or a whole folder and they play as a playlist; the browser asks for one click before it allows sound.',
       'video.none': 'No video',
       'video.add': 'Add video',
       'video.addFiles': 'Add local video',
       'video.addFolder': 'Add a folder of videos',
       'video.prev': 'Previous video',
       'video.next': 'Next video',
+      'video.playlist': 'Playlist',
+      'video.relink': 'Relink the original file',
+      'video.relinkHint': 'This video was added without a file path, so the player cannot prepare its audio track. Click the link button at the bottom-left of the card and point it at the original file once — after that it plays with sound.',
+      'video.relinked': 'Original file linked. Preparing a playable audio track…',
+      'video.relinkedAuto': 'Found the original file on disk and linked it. Audio is being prepared…',
+      'video.pathMissing': 'Some videos have no file path, so their audio track may not play. Use the link button at the bottom-left of the card to point at the original file once.',
+      'video.relinkFailed': 'Could not find the original file. Please pick it in the dialog.',
+      'common.yes': 'yes',
+      'common.no': 'no',
+      'video.diag': 'Diagnostics — original file: {path} · audio track: {audio} · video muted: {muted} · picture: {video} · sound: {sound}',
+      'video.diagCopy': 'Copy diagnostics',
       'video.deleteManyConfirm': 'Delete the selected videos?',
-      'video.addHint': 'Videos are referenced from their original files, so there is no size limit. The latest video becomes active; image wallpapers remain available when video is off.',
+      'video.addHint': 'Videos are referenced from their original files, so there is no size limit. Use ＋ for a multi-selection, the folder button for a whole directory (sorted by name), or drop files and folders onto the tile.',
       'video.play': 'Play video',
       'video.pause': 'Pause video',
       'video.mute': 'Mute video',
@@ -1270,7 +1303,7 @@ window.__ModuleLoader__.load({
       'video.playbackError': 'This video format cannot be played by the browser. Try an MP4 (H.264) or WebM file.',
       'video.proxyReady': 'This HEVC video now has a seekable H.264 copy. Dragging the progress bar works.',
       'video.audioUnsupported': 'This movie uses an audio codec the player cannot decode, and a compatible audio track could not be prepared.',
-      'video.autoplayBlocked': 'Press play in the video player to start playback.',
+      'video.autoplayBlocked': 'Browsers block autoplay with sound. Click anywhere on the page (or press play) to start it.',
       'video.reselect': 'This video needs to be re-selected to grant file access. Click ＋ and pick the same file again.',
       'notice.videoStorage': 'Local video storage is unavailable in this browser.'
     };
@@ -1377,15 +1410,26 @@ window.__ModuleLoader__.load({
       'notice.skinLimit': '最多保留 12 个自定义皮肤。',
       'notice.wallpaperLimit': '已达到自定义壁纸数量上限。',
       'section.video': '视频壁纸',
-      'section.video.desc': '用任意本地视频（不限大小、不限时长）做全屏 Harness 背景，直接从磁盘流式播放，不复制进存储。声音需要你点播放后才会启动。',
+      'section.video.desc': '用任意本地视频（不限大小、不限时长）做全屏 Harness 背景，直接从磁盘流式播放，不复制进存储。可以一次多选或直接导入整个文件夹，它们会排队播放；浏览器需要你先点一下页面才允许出声。',
       'video.none': '关闭视频',
       'video.add': '添加视频',
       'video.addFiles': '添加本地视频',
       'video.addFolder': '添加视频文件夹',
       'video.prev': '上一个视频',
       'video.next': '下一个视频',
+      'video.playlist': '播放列表',
+      'video.relink': '重新关联原文件',
+      'video.relinkHint': '这个视频导入时没有记录文件路径，播放器无法为它准备音轨。点卡片左下角的链接按钮，手动指一次原文件，之后播放就有声音了。',
+      'video.relinked': '已关联原文件，正在准备可播放的音轨…',
+      'video.relinkedAuto': '已在磁盘上找回原文件并自动关联，正在准备音轨…',
+      'video.pathMissing': '有视频没有文件路径，音轨可能无法播放。点卡片左下角的链接按钮指定一次原文件即可。',
+      'video.relinkFailed': '没找到原文件，请在弹窗里手动选择一次。',
+      'common.yes': '有',
+      'common.no': '无',
+      'video.diag': '自检 —— 原文件：{path}｜音轨：{audio}｜画面静音：{muted}｜画面：{video}｜声音：{sound}',
+      'video.diagCopy': '复制自检信息',
       'video.deleteManyConfirm': '要删除选中的视频吗？',
-      'video.addHint': '视频直接引用原文件，所以没有大小限制。最新导入的视频会自动启用；关闭视频后，原来的图片壁纸仍然可用。',
+      'video.addHint': '视频直接引用原文件，没有大小限制。用 ＋ 一次多选，点右上角文件夹按钮导入整个目录（按文件名排序），也可以把文件或文件夹直接拖到磁贴上。',
       'video.play': '播放视频',
       'video.pause': '暂停视频',
       'video.mute': '静音',
@@ -1407,7 +1451,7 @@ window.__ModuleLoader__.load({
       'video.playbackError': '这个视频格式浏览器无法播放，换成 MP4（H.264）或 WebM 试试。',
       'video.proxyReady': '这个 HEVC 视频已生成可拖动的 H.264 副本，现在可以任意拖动进度。',
       'video.audioUnsupported': '这个视频的音频编码无法直接播放，兼容音轨也没能准备好。',
-      'video.autoplayBlocked': '点一下播放器上的播放按钮即可开始播放。',
+      'video.autoplayBlocked': '浏览器拦截了带声音的自动播放。在页面任意处点一下（或点播放）即可开始。',
       'video.reselect': '这个视频需要重新选择一次以授权读取文件。点 ＋ 再选一次同一个文件即可。',
       'notice.videoStorage': '当前浏览器无法使用本地视频存储。'
     };
@@ -1578,6 +1622,17 @@ window.__ModuleLoader__.load({
       }, h('path', { d: 'M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.93l-5.3 2.78 1.01-5.9-4.29-4.18 5.93-.86Z' }));
     }
 
+    function IconLink(props) {
+      const size = (props && props.size) || 13;
+      return h('svg', {
+        viewBox: '0 0 24 24', width: size, height: size, fill: 'none', stroke: 'currentColor',
+        strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, focusable: 'false'
+      },
+        h('path', { d: 'M10.6 13.4a4 4 0 0 0 5.66 0l2.83-2.83a4 4 0 0 0-5.66-5.66l-1.41 1.41' }),
+        h('path', { d: 'M13.4 10.6a4 4 0 0 0-5.66 0L4.9 13.4a4 4 0 0 0 5.66 5.66l1.41-1.41' })
+      );
+    }
+
     function IconChevron(props) {
       const size = (props && props.size) || 14;
       const dir = props && props.dir === 'right' ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7';
@@ -1609,6 +1664,10 @@ window.__ModuleLoader__.load({
 .dsh-skin-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;}
 .dsh-skin-h2{margin:0;font-size:14px;font-weight:600;}
 .dsh-skin-hint{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;}
+.dsh-skin-hint-warn{color:#ffbe50;}
+.dsh-skin-diag{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.dsh-skin-mini-btn{padding:2px 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;cursor:pointer;}
+.dsh-skin-mini-btn:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-brand-primary);}
 .dsh-skin-mode-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);}
 .dsh-skin-mode-copy{display:flex;flex-direction:column;gap:2px;min-width:180px;flex:1;}
 .dsh-skin-mode-label{font-size:12.5px;font-weight:600;color:var(--dsw-alias-label-primary);}
@@ -1773,7 +1832,15 @@ window.__ModuleLoader__.load({
 .dsh-skin-video-fav{position:absolute;top:6px;left:6px;z-index:2;display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:50%;background:rgba(0,0,0,.55);color:rgba(255,255,255,.82);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .12s ease;}
 .dsh-skin-video-item:hover .dsh-skin-video-fav,.dsh-skin-video-fav:focus-visible,.dsh-skin-video-fav.is-on{opacity:1;pointer-events:auto;}
 .dsh-skin-video-fav.is-on{color:#ffd166;}
-.dsh-skin-video-add-item{display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--dsw-alias-border-l1);border-radius:10px;aspect-ratio:auto;min-height:96px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}
+/* A video imported without a path can play picture but never sound (its audio
+   codec may be E-AC-3/DTS, which needs a host-side ffmpeg sidecar). This is a
+   repair affordance, so it stays visible instead of appearing on hover only. */
+.dsh-skin-video-relink{position:absolute;left:6px;bottom:6px;z-index:2;display:flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:1px solid rgba(255,190,80,.75);border-radius:50%;background:rgba(0,0,0,.62);color:#ffbe50;cursor:pointer;}
+.dsh-skin-video-relink:hover{background:rgba(255,190,80,.24);color:#fff;}
+.dsh-skin-video-relink:focus-visible{outline:2px solid #ffbe50;outline-offset:1px;}
+.dsh-skin-video-add-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px;border:1.5px dashed var(--dsw-alias-border-l1);border-radius:10px;min-height:96px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;}
+.dsh-skin-video-add.is-dragging .dsh-skin-video-add-item{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-brand-primary);}
+.dsh-skin-video-add .dsh-skin-add-folder{top:6px;right:6px;}
 .dsh-skin-video-add-item:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary);}
 .dsh-skin-video-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px;border-radius:12px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);}
 .dsh-skin-video-controls.is-compact{flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px;}
@@ -1786,6 +1853,11 @@ window.__ModuleLoader__.load({
 .dsh-skin-video-toggle.is-on{background:var(--dsw-alias-brand-primary);color:#fff;border-color:transparent;}
 .dsh-skin-video-empty{font-size:12px;color:var(--dsw-alias-label-secondary);padding:8px 0;}
 .dsh-skin-quick-videos{display:flex;flex-wrap:wrap;gap:8px;}
+.dsh-skin-quick-vadd-wrap{position:relative;flex:none;display:flex;}
+.dsh-skin-quick-vadd-wrap.is-dragging .dsh-skin-quick-vadd{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-brand-primary);}
+.dsh-skin-quick-vadd-folder{position:absolute;top:-5px;right:-6px;z-index:2;display:flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:50%;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);cursor:pointer;}
+.dsh-skin-quick-vadd-folder:hover{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);}
+.dsh-skin-quick-vadd-folder:disabled{opacity:.45;cursor:not-allowed;}
 .dsh-skin-quick-vadd{display:flex;align-items:center;justify-content:center;width:56px;height:40px;padding:0;border:1.5px dashed var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;flex:none;}
 .dsh-skin-quick-vadd:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary);}
 .dsh-skin-quick-vadd:disabled{opacity:.5;cursor:not-allowed;}
@@ -1803,7 +1875,12 @@ window.__ModuleLoader__.load({
 .dsh-skin-quick-vcheck{position:absolute;right:2px;bottom:2px;display:flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-brand-primary);color:#fff;}
 .dsh-skin-player{position:fixed;left:50%;bottom:calc(var(--dsh-composer-height,152px) + 28px);transform:translateX(-50%);z-index:32;display:flex;flex-direction:column;gap:3px;width:min(760px,calc(100vw - 40px));padding:12px 18px 10px;border:none;border-radius:10px;background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.62));color:#fff;pointer-events:none;opacity:0;transition:opacity .18s ease;font-size:12px;box-shadow:none;}
 .dsh-skin-player[data-visible="true"]{opacity:1;pointer-events:auto;}
-.dsh-skin-player-row{display:flex;align-items:center;gap:10px;min-width:0;}
+.dsh-skin-player-row{position:relative;display:flex;align-items:center;gap:10px;min-width:0;}
+.dsh-skin-player-nav{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1px;padding:1px 3px;border-radius:999px;background:rgba(255,255,255,.12);}
+.dsh-skin-player-nav .dsh-skin-player-btn{width:24px;height:24px;border-radius:50%;}
+.dsh-skin-player-count{min-width:46px;text-align:center;font-size:11px;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.9);white-space:nowrap;}
+.dsh-skin-player-btn:disabled{opacity:.32;cursor:default;background:transparent;}
+@media (max-width:560px){.dsh-skin-player-nav{position:static;transform:none;}}
 .dsh-skin-player-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:none;border-radius:6px;background:transparent;color:#fff;cursor:pointer;flex:none;}
 .dsh-skin-player-btn:hover{background:rgba(255,255,255,.18);}
 .dsh-skin-player-time{font-variant-numeric:tabular-nums;color:rgba(255,255,255,.86);flex:none;min-width:34px;text-align:center;font-size:11px;}
@@ -1814,7 +1891,7 @@ window.__ModuleLoader__.load({
 .dsh-skin-player-seek:focus-visible{outline:2px solid #00aeec;outline-offset:2px;}
 .dsh-skin-player-hud{position:absolute;right:18px;top:-26px;padding:3px 9px;border-radius:6px;background:rgba(0,0,0,.66);color:#fff;font-size:11px;font-variant-numeric:tabular-nums;pointer-events:none;}
 .dsh-skin-player-spacer{flex:1;min-width:8px;}
-.dsh-skin-video-audio{display:none !important;}
+.dsh-skin-video-audio{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;}
 #root,[data-dsh-root]{transition:opacity .38s cubic-bezier(.22,.61,.36,1),transform .38s cubic-bezier(.22,.61,.36,1);}
 body.dsh-skin-cinema #root,body.dsh-skin-cinema [data-dsh-root]{opacity:0 !important;transform:translateY(14px) scale(.994);pointer-events:none !important;}
 body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{transition:opacity .38s ease,transform .38s ease;}
@@ -1853,7 +1930,9 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         videoAudioUnsupported: 'video.audioUnsupported',
         videoAutoplayBlocked: 'video.autoplayBlocked',
         videoReselect: 'video.reselect',
-        videoPartial: 'video.partial'
+        videoPartial: 'video.partial',
+        videoRelinked: 'video.relinked',
+        videoRelinkFailed: 'video.relinkFailed'
       };
       return t(keys[code] || 'notice.storage');
     }
@@ -1881,6 +1960,113 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         // Shared handle to the live background <video> so the floating player
         // bar can read/set progress. Set by VideoBackground's ref callback.
         const videoElementRef = { current: null };
+        // A ready proxy replaces the <video> src, which rewinds the element to
+        // 0:00. Remember where playback was so the swap cannot "jump back".
+        let resumeAt = 0;
+        // How many times a sidecar URL 404'd for one record; see the <audio>
+        // onError handler.
+        const audioRetry = new Map();
+
+        // Diagnostics. Run `__skinStudioDiag()` in the renderer console to read
+        // the real media state (muted / paused / volume / readyState / sidecar)
+        // instead of guessing from the UI. Check this first when a video is
+        // silent; it also prints the build stamp, so a stale bundle is obvious.
+        function skinStudioDiag() {
+          const pick = (selector) => (typeof document !== 'undefined' && typeof document.querySelector === 'function' ? document.querySelector(selector) : null);
+          const read = (media) => (media ? {
+            src: String(media.currentSrc || media.src || '').slice(0, 180),
+            paused: Boolean(media.paused),
+            muted: Boolean(media.muted),
+            volume: Number(media.volume),
+            currentTime: Number(media.currentTime),
+            duration: Number(media.duration),
+            readyState: Number(media.readyState),
+            networkState: Number(media.networkState),
+            error: media.error ? String(media.error.code) + ':' + String(media.error.message || '') : null
+          } : null);
+          const node = pick('video.dsh-skin-video');
+          const audio = pick('audio.dsh-skin-video-audio');
+          let videoId = null;
+          try { videoId = store.get().videoId; } catch (error) { /* ignore */ }
+          const sidecarPlaying = Boolean(audio && !audio.paused && !audio.muted);
+          let activeItem = null;
+          try {
+            const currentState = store.get();
+            const found = currentState.videoId && currentState.videoId !== 'none'
+              ? currentState.customVideos.find((item) => item.id === currentState.videoId)
+              : null;
+            if (found) {
+              activeItem = {
+                id: found.id,
+                name: found.name,
+                size: Number(found.size) || 0,
+                sourcePath: found.sourcePath || null,
+                audioUrl: found.audioUrl || null,
+                proxyUrl: found.proxyUrl || null,
+                fullUrl: String(found.fullUrl || '').slice(0, 180)
+              };
+            }
+          } catch (error) { /* ignore */ }
+          return {
+            build: BUILD,
+            version: PLUGIN_VERSION,
+            videoId,
+            item: activeItem,
+            video: read(node),
+            sidecar: read(audio),
+            verdict: !node ? 'no <video> element'
+              : (node.muted && !sidecarPlaying) ? 'MUTED with no audible sidecar'
+                : node.paused ? 'paused (playback blocked or toggled off)' : 'playing'
+          };
+        }
+        if (typeof window !== 'undefined') window.__skinStudioDiag = skinStudioDiag;
+
+        // Double-click the empty strip above the chat (or the control bar) to
+        // watch the backdrop full screen. Bound on the document because the
+        // backdrop layer itself is pointer-events:none, so the top strip is
+        // usually the app shell, not our element.
+        const TOP_BAND_PX = 150;
+        function backdropVideo() {
+          if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return null;
+          return document.querySelector('video.dsh-skin-video');
+        }
+        function toggleFullscreenPlayback() {
+          const node = backdropVideo();
+          if (!node) return false;
+          const doc = typeof document !== 'undefined' ? document : null;
+          if (!doc) return false;
+          if (doc.fullscreenElement) {
+            const exit = doc.exitFullscreen || (doc.webkitExitFullscreen);
+            if (exit) { try { const p = exit.call(doc); if (p && p.catch) p.catch(() => {}); } catch (error) { /* ignore */ } }
+            return true;
+          }
+          const request = node.requestFullscreen || node.webkitRequestFullscreen;
+          if (request) {
+            try {
+              const p = request.call(node, { navigationUI: 'hide' });
+              if (p && p.then) p.then(() => { try { node.play && node.play().catch(() => {}); } catch (error) { /* ignore */ } }).catch(() => {});
+              else { try { node.play && node.play().catch(() => {}); } catch (error) { /* ignore */ } }
+            } catch (error) { /* ignore */ }
+            return true;
+          }
+          return false;
+        }
+        const onBackdropDblClick = (event) => {
+          if (disposed || !event) return;
+          const target = event.target;
+          if (target && typeof target.closest === 'function' &&
+            target.closest('button,input,textarea,select,a,[contenteditable="true"],[role="button"],[role="slider"]')) return;
+          const fullscreenNow = Boolean(typeof document !== 'undefined' && document.fullscreenElement);
+          const inTopBand = Number(event.clientY) <= TOP_BAND_PX;
+          const inPlayer = Boolean(target && typeof target.closest === 'function' && target.closest('.dsh-skin-player'));
+          if (!fullscreenNow && !inTopBand && !inPlayer) return;
+          if (!toggleFullscreenPlayback()) return;
+          event.preventDefault();
+          event.stopPropagation();
+        };
+        if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+          document.addEventListener('dblclick', onBackdropDblClick, true);
+        }
         let disposed = false;
         let themeLayer = null;
         let lastTokenKey = null;
@@ -1963,6 +2149,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           applyVisuals();
           return () => {
             disposed = true;
+            try { document.removeEventListener('dblclick', onBackdropDblClick, true); } catch (error) { /* ignore */ }
             unsubscribe();
             store.dispose();
             fullUrlCache.forEach((url) => {
@@ -2525,6 +2712,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               if (!response.ok) throw new Error('HTTP ' + response.status);
               const data = await response.json();
               if (data && data.ready && data.needed && data.url) {
+                const live = videoElementRef.current;
+                resumeAt = live && Number.isFinite(live.currentTime) ? live.currentTime : 0;
                 mergeVideoItem(item.id, { proxyUrl: data.url, audioUrl: null, videoMuted: false });
                 store.set({}, { persist: true });
                 store.notify('videoProxyReady');
@@ -2550,8 +2739,17 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           }
         }
 
+        // Folder imports land within the same millisecond, so createdAt alone
+        // gives an unstable playlist order; fall back to natural name order so
+        // S01E02 always follows S01E01.
+        function comparePlaylist(a, b) {
+          const byTime = (Number(a && a.createdAt) || 0) - (Number(b && b.createdAt) || 0);
+          if (byTime !== 0) return byTime;
+          return String((a && a.name) || '').localeCompare(String((b && b.name) || ''), undefined, { numeric: true, sensitivity: 'base' });
+        }
+
         async function stepVideo(delta) {
-          const list = store.get().customVideos.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          const list = store.get().customVideos.slice().sort(comparePlaylist);
           if (!list.length) return;
           const current = list.findIndex((item) => item.id === store.get().videoId);
           const next = list[(current + delta + list.length) % list.length];
@@ -2634,8 +2832,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               console.error('[skin-studio] video path upgrade failed', error);
             }
             store.set({ videoId: existing.id, videoPlaying: true, videoMuted: false, videoAudioVersion: 2 }, { persist: true });
-            const item = findCustomVideo(existing.id);
-            if (item) prepareVideoAudio(item);
+            if (findCustomVideo(existing.id)) prewarmAudio([existing.id]);
             return;
           }
           if (current.customVideos.length >= MAX_CUSTOM_VIDEOS) {
@@ -2672,30 +2869,196 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             videoMuted: false,
             videoAudioVersion: 2
           }, { persist: true });
-          prepareVideoAudio(item);
+          prewarmAudio([id]);
+        }
+
+        /**
+         * Point an existing (blob-backed) video record at a real file path.
+         *
+         * A path is what unlocks the host side: streaming with Range support,
+         * ffprobe on the audio codec, and the ffmpeg AAC sidecar for codecs
+         * Chromium cannot decode (E-AC-3, DTS, TrueHD). Without it such a video
+         * shows a picture and no sound, which is exactly the reported bug.
+         */
+        async function bindVideoPath(id, filePath, name, size, options) {
+          if (disposed || !id || !filePath) return false;
+          const base = findCustomVideo(id);
+          if (!base) return false;
+          // Relinking swaps the <video> src (blob -> host stream), which resets
+          // playback to 0:00; remember where we were and restore it on
+          // loadedmetadata.
+          if (store.get().videoId === id) {
+            const live = videoElementRef.current;
+            resumeAt = live && Number.isFinite(live.currentTime) ? live.currentTime : 0;
+          }
+          const url = '/api/skin-studio/media/video?path=' + encodeURIComponent(filePath);
+          const patch = {
+            sourcePath: filePath,
+            key: 'path:' + filePath,
+            hasHandle: false,
+            mime: base.mime || 'video/mp4',
+            size: Number(size) || Number(base.size) || 0,
+            name: name || base.name,
+            audioUrl: null,
+            proxyUrl: null,
+            fullUrl: url
+          };
+          videoUrlCache.set(id, url);
+          mergeVideoItem(id, patch);
+          try {
+            await idbPutVideoItem(Object.assign({}, base, patch));
+          } catch (error) {
+            console.warn('[skin-studio] video path persist failed', error && error.message);
+          }
+          // The blob is now redundant: dropping it frees the multi-GB copy.
+          try { await idbDeleteVideoBlob(id); } catch (error) { /* ignore */ }
+          store.set({ videoId: id, videoPlaying: true, videoMuted: false, videoAudioVersion: 2 }, { persist: true });
+          const fresh = findCustomVideo(id);
+          // Queue instead of firing directly: a repair sweep can relink a whole
+          // season at once, and sixteen parallel ffmpeg jobs would starve the
+          // machine. The queue runs them one at a time. Startup repair passes
+          // opt out (`audio: false`): transcoding 16 episodes just because the
+          // app opened is not something the user asked for — the playing video
+          // still prepares itself through the VideoBackground effect.
+          if (fresh && !(options && options.audio === false)) prewarmAudio([id]);
+          return true;
+        }
+
+        // Ask the host to locate this exact file on disk (name + size).
+        // Used *before* a blob is written: the path is what the host needs to
+        // probe the audio codec and, for E-AC-3/DTS, build the AAC sidecar.
+        // Blob-only records have no path and are therefore silent forever.
+        async function lookupVideoPath(fileName, size) {
+          if (disposed || !fileName) return null;
+          try {
+            const endpoint = mediaPath('/api/skin-studio/media/relink?name=' + encodeURIComponent(fileName) +
+              '&size=' + encodeURIComponent(String(Number(size) || 0)));
+            const response = await fetch(endpoint, { cache: 'no-store' });
+            if (!response.ok) return null;
+            const data = await response.json();
+            if (!data || !data.ok || !data.path) return null;
+            return data;
+          } catch (error) {
+            console.warn('[skin-studio] path lookup failed', error && error.message);
+            return null;
+          }
+        }
+
+        // One-at-a-time repair pass for records that are still blob-backed.
+        // Sequential on purpose: a 12-episode drop would otherwise fire twelve
+        // concurrent filesystem sweeps.
+        async function healMissingPaths(ids, options) {
+          const queue = Array.from(new Set(ids || []));
+          let healed = 0;
+          for (const id of queue) {
+            if (disposed) return healed;
+            const item = findCustomVideo(id);
+            if (!item || item.sourcePath) continue;
+            if (await recoverVideoPath(item, options)) healed += 1;
+          }
+          if (healed && !(options && options.silent)) store.notify('videoRelinkedAuto');
+          return healed;
+        }
+
+        async function recoverVideoPath(item, options) {
+          if (disposed || !item || !item.id || item.sourcePath || !item.name) return false;
+          try {
+            const endpoint = mediaPath('/api/skin-studio/media/relink?name=' + encodeURIComponent(item.name) +
+              '&size=' + encodeURIComponent(String(item.size || 0)));
+            const response = await fetch(endpoint, { cache: 'no-store' });
+            if (!response.ok) return false;
+            const data = await response.json();
+            if (!data || !data.ok || !data.path) return false;
+            console.info('[skin-studio] relinked video to', data.path);
+            return await bindVideoPath(item.id, data.path, data.name || item.name, data.size || item.size, options);
+          } catch (error) {
+            console.warn('[skin-studio] relink lookup failed', error && error.message);
+            return false;
+          }
+        }
+
+        // Manual fix for anything the automatic lookup misses: pick the file.
+        async function relinkVideo(item) {
+          if (!item || !item.id) return;
+          if (item.sourcePath) return;
+          let info = null;
+          try {
+            const response = await fetch(mediaPath('/api/skin-studio/media/pick'), { cache: 'no-store' });
+            if (response.ok) {
+              const data = await response.json();
+              if (data && data.canceled) return;
+              if (data && data.ok && data.path) info = data;
+            }
+          } catch (error) {
+            console.warn('[skin-studio] relink picker unavailable', error && error.message);
+          }
+          if (!info) {
+            store.notify('videoRelinkFailed');
+            return;
+          }
+          const bound = await bindVideoPath(item.id, info.path, info.name || item.name, info.size || item.size);
+          if (bound) store.notify('videoRelinked');
         }
 
         async function importVideoFolder() {
-          if (disposed) return;
+          // Returns 'ok' | 'canceled' | 'unavailable' so the caller can decide
+          // whether to fall back to a <input webkitdirectory> picker (browsers
+          // without the host's native folder dialog).
+          if (disposed) return 'unavailable';
           try {
             const response = await fetch(mediaPath('/api/skin-studio/media/pick-folder'), { cache: 'no-store' });
+            if (!response.ok) return 'unavailable';
             const data = await response.json();
-            if (!data || !data.ok || !Array.isArray(data.files)) return;
+            if (data && data.canceled) return 'canceled';
+            if (!data || !data.ok || !Array.isArray(data.files)) return 'unavailable';
+            if (!data.files.length) {
+              store.notify('videoInvalid');
+              return 'ok';
+            }
             const files = data.files.slice(0, MAX_CUSTOM_VIDEOS);
+            const before = new Set(store.get().customVideos.map((item) => item.id));
             for (const info of files) {
               await importVideoPath(info);
             }
+            // Warm the AAC sidecars one by one in the background. A whole
+            // season is ~40s per episode; doing it now is what makes
+            // "import the folder, then just keep pressing next" work without
+            // a silent episode every time the playlist advances.
+            const added = store.get().customVideos.filter((item) => !before.has(item.id)).map((item) => item.id);
+            if (added.length) prewarmAudio(added);
+            return 'ok';
           } catch (error) {
             console.warn('[skin-studio] video folder import failed', error && error.message);
-            store.notify('videoInvalid');
+            return 'unavailable';
+          }
+        }
+
+        // Serial background audio preparation. The host answers /prepare with
+        // a cached sidecar size after the first call, so re-running this on a
+        // warm cache is nearly free.
+        const prewarmQueue = [];
+        let prewarmRunning = false;
+        async function prewarmAudio(ids) {
+          Array.from(ids || []).forEach((id) => { if (id) prewarmQueue.push(id); });
+          if (prewarmRunning) return;
+          prewarmRunning = true;
+          try {
+            while (prewarmQueue.length && !disposed) {
+              const id = prewarmQueue.shift();
+              const item = findCustomVideo(id);
+              if (!item || !item.sourcePath || usableAudioUrl(item.audioUrl)) continue;
+              await prepareVideoAudio(item);
+            }
+          } catch (error) {
+            console.warn('[skin-studio] audio prewarm stopped', error && error.message);
+          } finally {
+            prewarmRunning = false;
           }
         }
 
         async function importVideoFiles(fileList, handleList) {
           if (disposed) return;
           const rawFiles = Array.from(fileList || []);
-          try {
-          } catch (e) {}
           const handles = Array.from(handleList || []);
           // Pair each file with a handle when the caller supplied them (via
           // showOpenFilePicker). Files without a handle fall back to blob storage.
@@ -2748,8 +3111,25 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           }
           const batch = candidates.slice(0, room);
           if (candidates.length > room) store.notify('videoLimit');
+          // Resolve the on-disk path for every drop that arrived without one
+          // (drag & drop, <input>, webkitdirectory). Bounded concurrency: each
+          // lookup is a `find` over the media folders, so four at a time keeps
+          // a 12-episode drop under ~1.5s without hammering the disk.
+          const resolvedPaths = new Map();
+          const needsLookup = batch.filter((entry) => !(typeof entry.file.path === 'string' && entry.file.path));
+          let cursor = 0;
+          const workers = Array.from({ length: Math.min(4, needsLookup.length) }, async () => {
+            while (cursor < needsLookup.length) {
+              const entry = needsLookup[cursor];
+              cursor += 1;
+              const hit = await lookupVideoPath(entry.file.name, entry.file.size);
+              if (hit && hit.path) resolvedPaths.set(videoFileKey(entry.file), hit.path);
+            }
+          });
+          if (workers.length) await Promise.all(workers);
           store.set({ videoImporting: { total: batch.length, done: 0, failed: 0 } }, { persist: false });
           let firstId = null;
+          const importedIds = [];
           let failed = 0;
           let lastVideoError = null;
           for (const entry of batch) {
@@ -2758,7 +3138,12 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             try {
               const id = newId('vid');
               const mime = file.type || 'video/mp4';
-              const sourcePath = (typeof file.path === 'string' && file.path) || null;
+              // Prefer the real path: drag-and-drop, <input type=file> and
+              // webkitdirectory all hand us a File without one (Electron 32+
+              // removed File.path), and a path is what unlocks host streaming
+              // plus the AAC sidecar for E-AC-3/DTS audio.
+              const sourcePath = (typeof file.path === 'string' && file.path) ||
+                resolvedPaths.get(videoFileKey(file)) || null;
               const record = {
                 id,
                 name: videoDisplayName(file.name),
@@ -2799,6 +3184,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
                 hasHandle: record.hasHandle,
                 sourcePath: record.sourcePath
               };
+              importedIds.push(id);
               if (firstId === null) {
                 // Path import streams through the host route; browser/handle
                 // imports still use an object URL straight from the File.
@@ -2854,6 +3240,20 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               store.notify(storage ? 'videoQuota' : 'videoInvalid');
             } else if (failed) store.notify('videoPartial');
           }
+          // Anything the up-front lookup missed (file outside the usual media
+          // folders, renamed after import) gets a second chance once the batch
+          // has settled, so a drop never leaves an unreachable silent record.
+          if (!disposed) {
+            healMissingPaths(importedIds).then((healed) => {
+              if (disposed) return;
+              const still = importedIds.filter((id) => {
+                const item = findCustomVideo(id);
+                return item && !item.sourcePath;
+              });
+              if (still.length) store.notify('videoPathMissing');
+              else if (healed) store.notify('videoRelinkedAuto');
+            }).catch(() => {});
+          }
         }
 
         // Pick videos through the File System Access API when available so we
@@ -2873,21 +3273,45 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           // native input in Electron and keep the handle picker for browsers.
           const isElectron = typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent || '');
           if (isElectron) {
-            // Electron's <input type=file> hides the real path, and the File
-            // System Access handle hides it too. Ask the host to run the
-            // native picker so we get a POSIX path we can stream + ffmpeg.
+            // Ask the host for a real POSIX path list: one dialog, many videos.
+            // Streaming and ffmpeg probing both need paths, and Electron's
+            // <input type=file> hides them, so this is the preferred path.
+            let hostPickerMissing = false;
             try {
-              const response = await fetch('/api/skin-studio/media/pick', { method: 'GET', cache: 'no-store' });
-              if (response.ok) {
+              const response = await fetch(mediaPath('/api/skin-studio/media/pick-many'), { method: 'GET', cache: 'no-store' });
+              if (response.status === 404) {
+                // Older host without the multi-select route: skip the
+                // single-file /pick and fall through to the native <input>,
+                // which still allows choosing several files at once.
+                hostPickerMissing = true;
+              } else if (response.ok) {
                 const data = await response.json();
-                if (data && data.ok && data.path) {
-                  await importVideoPath(data);
+                if (data && data.ok && Array.isArray(data.files) && data.files.length) {
+                  for (const info of data.files) {
+                    await importVideoPath(info);
+                  }
                   return;
                 }
                 if (data && data.canceled) return;
+                hostPickerMissing = true;
               }
             } catch (error) {
-              console.warn('[skin-studio] host video picker unavailable', error && error.message);
+              console.warn('[skin-studio] host multi picker unavailable', error && error.message);
+            }
+            if (!hostPickerMissing) {
+              try {
+                const response = await fetch(mediaPath('/api/skin-studio/media/pick'), { method: 'GET', cache: 'no-store' });
+                if (response.ok) {
+                  const data = await response.json();
+                  if (data && data.ok && data.path) {
+                    await importVideoPath(data);
+                    return;
+                  }
+                  if (data && data.canceled) return;
+                }
+              } catch (error) {
+                console.warn('[skin-studio] host video picker unavailable', error && error.message);
+              }
             }
           }
           if (isElectron && inputEl) {
@@ -2990,8 +3414,50 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             if (active) prepareVideoAudio(active);
           }
           store.set({}, { persist: true });
+          // Self-heal records created before the plugin knew how to keep a file
+          // path (Electron 32 dropped File.path, so those became IndexedDB
+          // blobs). Without a path the host cannot build an AAC sidecar and a
+          // movie with E-AC-3/DTS audio plays with a picture and no sound.
+          // Runs once per page load, bounded, and never blocks the UI.
+          if (!relinkSweepStarted) {
+            relinkSweepStarted = true;
+            const pathless = items.filter((item) => !item.sourcePath && item.name);
+            if (pathless.length) {
+              (async () => {
+                const healed = await healMissingPaths(pathless.map((item) => item.id), { silent: true, audio: false });
+                if (!healed) return;
+                store.notify('videoRelinked');
+                const activeId2 = store.get().videoId;
+                if (activeId2 !== 'none') {
+                  const again = findCustomVideo(activeId2);
+                  if (again) prepareVideoAudio(again);
+                }
+              })().catch((error) => {
+                console.warn('[skin-studio] video relink sweep failed', error && error.message);
+              });
+            }
+          }
         }
 
+        let relinkSweepStarted = false;
+        // Send the same snapshot to the host so the state of a silent video can
+        // be read from disk (tmpdir/dsh-skin-studio-audio/diag.json) without a
+        // console. Fire after hydration and whenever the tab becomes visible.
+        const reportDiagnostics = () => {
+          try {
+            const body = JSON.stringify(skinStudioDiag());
+            fetch(mediaPath('/api/skin-studio/media/report'), {
+              method: 'POST', cache: 'no-store',
+              headers: { 'content-type': 'application/json' },
+              body
+            }).catch(() => {});
+          } catch (error) { /* ignore */ }
+        };
+        setTimeout(reportDiagnostics, 5000);
+        setTimeout(reportDiagnostics, 25000);
+        if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+          document.addEventListener('visibilitychange', () => { if (!document.hidden) reportDiagnostics(); });
+        }
         hydrateVideos().catch((error) => {
           console.error('[skin-studio] video hydration failed', error);
         });
@@ -3623,7 +4089,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               )
               : null,
             h('p', { className: 'dsh-skin-lede' }, t('page.desc')),
-            h('span', { className: 'dsh-skin-version', key: 'version' }, 'Skin Studio v' + PLUGIN_VERSION),
+            h('span', { className: 'dsh-skin-version', key: 'version' }, 'Skin Studio v' + PLUGIN_VERSION + ' · build ' + BUILD),
+            h(VideoDiagLine, { key: 'video-diag' }),
             h(Preview, { key: 'preview' }),
 
             h('section', { className: 'dsh-skin-section', key: 'skin' },
@@ -4088,10 +4555,16 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           const videoRef = useRef(null);
           const audioRef = useRef(null);
           const [failed, setFailed] = useState(false);
-          const hasSidecar = Boolean(video && video.audioUrl);
+          const [sidecarBroken, setSidecarBroken] = useState(false);
+          // A sidecar only exists for audio codecs Chromium cannot decode. If its
+          // URL is unusable (or the element errors out) we must NOT keep the
+          // <video> muted — that is the classic "picture plays, no sound" state.
+          const sidecarUrl = usableAudioUrl(video && video.audioUrl);
+          const hasSidecar = Boolean(video && sidecarUrl && !sidecarBroken);
 
           useEffect(() => {
             setFailed(false);
+            setSidecarBroken(false);
           }, [video && video.source]);
 
           useEffect(() => {
@@ -4106,32 +4579,69 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             }
           }, [video && video.id, video && video.sourcePath, video && video.proxyUrl]);
 
+          // SINGLE SOURCE OF TRUTH for sound: the <video> element is audible
+          // unless a healthy sidecar exists. Never decide this from a codec
+          // table, from "the host said supported", or from a persisted flag --
+          // that guess is what makes "picture plays, no sound" come back.
           useEffect(() => {
             const node = videoRef.current;
             videoElementRef.current = node || null;
             if (!node) return;
-            node.muted = hasSidecar ? true : state.videoMuted;
+            const audio = audioRef.current;
+            const muted = state.videoMuted === true;
+            node.muted = hasSidecar ? true : muted;
             node.loop = state.videoLoop;
             try { node.volume = state.videoVolume; } catch (error) { /* ignore */ }
+            if (audio) {
+              audio.muted = muted;
+              audio.loop = state.videoLoop;
+              try { audio.volume = state.videoVolume; } catch (error) { /* ignore */ }
+            }
           }, [state.videoMuted, state.videoLoop, state.videoVolume, hasSidecar, video && video.source]);
 
           useEffect(() => {
             const node = videoRef.current;
             if (!node) return undefined;
-            if (state.videoPlaying) {
-              const playPromise = node.play();
-              if (playPromise && typeof playPromise.catch === 'function') {
-                playPromise.catch((error) => {
+            const start = () => {
+              const promise = node.play();
+              if (promise && typeof promise.catch === 'function') {
+                promise.catch((error) => {
                   if (error && error.name !== 'AbortError') {
                     console.warn('[skin-studio] video play failed', error.name, error.message);
                     if (error.name === 'NotAllowedError') store.notify('videoAutoplayBlocked');
                   }
                 });
               }
-            } else {
-              try { node.pause(); } catch (error) { /* ignore */ }
+            };
+            // Autoplay WITH SOUND stays blocked until the page has a gesture.
+            // Retry on every cheap gesture instead of leaving a silently paused
+            // element that still looks "playing" in the UI -- that reads as
+            // "the video has no sound" even though nothing is muted.
+            const retry = () => {
+              const current = store.get();
+              if (!current.videoPlaying || !node.paused) return;
+              start();
+            };
+            if (state.videoPlaying) start();
+            else { try { node.pause(); } catch (error) { /* ignore */ } }
+            if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+              document.addEventListener('pointerdown', retry, true);
+              document.addEventListener('keydown', retry, true);
+              document.addEventListener('visibilitychange', retry);
             }
-            return undefined;
+            if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+              window.addEventListener('focus', retry);
+            }
+            return () => {
+              if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+                document.removeEventListener('pointerdown', retry, true);
+                document.removeEventListener('keydown', retry, true);
+                document.removeEventListener('visibilitychange', retry);
+              }
+              if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+                window.removeEventListener('focus', retry);
+              }
+            };
           }, [state.videoPlaying, video && video.source]);
 
           useEffect(() => {
@@ -4244,18 +4754,41 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
                 setFailed(true);
                 store.notify('videoPlaybackError');
               },
+              onLoadedMetadata: () => {
+                const node = videoRef.current;
+                if (!node || !resumeAt) return;
+                const target = resumeAt;
+                resumeAt = 0;
+                if (Number.isFinite(target) && target > 0.5) {
+                  try { node.currentTime = target; } catch (error) { /* ignore */ }
+                }
+              },
               onLoadedData: () => { if (failed) setFailed(false); }
             }),
             hasSidecar ? h('audio', {
               ref: audioRef,
               className: 'dsh-skin-video-audio',
-              src: mediaPath(video.audioUrl),
+              src: mediaPath(sidecarUrl),
               preload: 'auto',
               loop: state.videoLoop,
               muted: state.videoMuted,
               'aria-hidden': 'true',
               onError: () => {
-                console.warn('[skin-studio] sidecar audio could not be loaded', video.audioUrl);
+                console.warn('[skin-studio] sidecar audio could not be loaded', sidecarUrl);
+                // Drop back to the element's own audio track instead of staying
+                // silent, then forget the stale URL so the next effect run asks
+                // the host again (the cache may have been cleaned).
+                setSidecarBroken(true);
+                if (videoRef.current) videoRef.current.muted = state.videoMuted;
+                // Retry the preparation exactly once per record: a purged
+                // cache recovers, while a genuinely broken track cannot spin
+                // the prepare/error loop forever.
+                const attempts = (audioRetry.get(video.id) || 0) + 1;
+                audioRetry.set(video.id, attempts);
+                if (video.audioUrl && attempts <= 2) {
+                  mergeVideoItem(video.id, { audioUrl: null });
+                  store.set({}, { persist: true });
+                }
                 store.notify('videoAudioUnsupported');
               }
             }) : null,
@@ -4285,6 +4818,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           const state = useStore(store);
           useLocale();
           const fileRef = useRef(null);
+          const folderRef = useRef(null);
+          const [dragging, setDragging] = useState(false);
           const importing = state.videoImporting;
           const atLimit = state.customVideos.length >= MAX_CUSTOM_VIDEOS;
           // Only the limit blocks the button; a running import shows progress
@@ -4294,45 +4829,73 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             ? t('video.importing').replace('{done}', String(importing.done)).replace('{total}', String(importing.total))
             : t('video.addFiles');
           const title = atLimit ? t('video.limit') : t('video.addFiles');
+          const folderTitle = atLimit ? t('video.limit') : t('video.addFolder');
+          const notifyFailed = (error) => {
+            console.error('[skin-studio] video import failed', error);
+            store.notify('videoInvalid');
+          };
           const onFiles = (event) => {
             const input = event.target;
+            // FileList is live: copy it before clearing the input.
             const files = input.files ? Array.from(input.files) : [];
             input.value = '';
-            if (files.length) {
-              importVideoFiles(files).catch((error) => {
-                console.error('[skin-studio] video import failed', error);
-                store.notify('videoInvalid');
-              });
-            }
+            if (files.length) importVideoFiles(files).catch(notifyFailed);
           };
-          return h('div', { className: 'dsh-skin-video-item' },
+          const openVideos = () => {
+            if (disabled || store.get().videoImporting) return;
+            pickAndImportVideos(fileRef).catch(notifyFailed);
+          };
+          const openFolder = () => {
+            if (disabled) return;
+            // Native folder dialog first: it yields real paths, so each video in
+            // the folder can stream and get its audio probed. Browsers without
+            // the host route fall back to <input webkitdirectory>.
+            importVideoFolder().then((result) => {
+              if (result === 'unavailable' && folderRef.current) folderRef.current.click();
+            }).catch(notifyFailed);
+          };
+          const onDrop = (event) => {
+            event.preventDefault();
+            setDragging(false);
+            if (disabled) return;
+            filesFromDataTransfer(event.dataTransfer).then((files) => {
+              if (files && files.length) return importVideoFiles(files);
+              store.notify('videoInvalid');
+              return undefined;
+            }).catch(notifyFailed);
+          };
+          return h('div', {
+            className: 'dsh-skin-video-item dsh-skin-video-add' + (dragging ? ' is-dragging' : ''),
+            onDragOver: (event) => {
+              event.preventDefault();
+              if (!disabled) setDragging(true);
+            },
+            onDragLeave: (event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false);
+            },
+            onDrop
+          },
             h('button', {
               type: 'button', className: 'dsh-skin-video-add-item', disabled, title, 'aria-label': title,
-              onClick: () => { if (!disabled && !store.get().videoImporting) pickAndImportVideos(fileRef).catch((error) => { console.error('[skin-studio] video import failed', error); store.notify('videoInvalid'); }); }
+              onClick: openVideos
             },
               h(IconPlus, { size: 18 }),
               h('span', { className: 'dsh-skin-video-sub' }, label)
             ),
+            h('button', {
+              type: 'button', className: 'dsh-skin-add-folder', disabled,
+              title: folderTitle, 'aria-label': folderTitle,
+              onClick: openFolder
+            }, h(IconFolderPlus, { size: 12 })),
             h('input', {
               ref: fileRef, type: 'file', accept: 'video/*', multiple: true,
               style: { display: 'none' }, onChange: onFiles
+            }),
+            h('input', {
+              ref: folderRef, type: 'file', accept: 'video/*', multiple: true,
+              webkitdirectory: '', directory: '',
+              style: { display: 'none' }, onChange: onFiles
             })
-          );
-        }
-
-        function VideoFolderAddTile() {
-          const state = useStore(store);
-          useLocale();
-          const atLimit = state.customVideos.length >= MAX_CUSTOM_VIDEOS;
-          return h('div', { className: 'dsh-skin-video-item' },
-            h('button', {
-              type: 'button', className: 'dsh-skin-video-add-item', disabled: atLimit,
-              title: t('video.addFolder'), 'aria-label': t('video.addFolder'),
-              onClick: () => { if (!atLimit) importVideoFolder(); }
-            },
-              h(IconFolderPlus, { size: 18 }),
-              h('span', { className: 'dsh-skin-video-sub' }, t('video.addFolder'))
-            )
           );
         }
 
@@ -4393,6 +4956,53 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           );
         }
 
+        // Settings-line diagnostics: the console is not somewhere users should
+        // have to go. This reads the same live media state as
+        // window.__skinStudioDiag() once a second and prints one plain line.
+        function VideoDiagLine() {
+          const state = useStore(store);
+          useLocale();
+          const [info, setInfo] = useState(null);
+          const activeId = state.videoId;
+          useEffect(() => {
+            let alive = true;
+            const read = () => {
+              if (!alive || typeof document === 'undefined') return;
+              const video = document.querySelector('video.dsh-skin-video');
+              const audio = document.querySelector('audio.dsh-skin-video-audio');
+              const item = activeId && activeId !== 'none' ? findCustomVideo(activeId) : null;
+              setInfo({
+                path: Boolean(item && item.sourcePath),
+                audio: Boolean(item && usableAudioUrl(item.audioUrl)),
+                muted: video ? Boolean(video.muted) : null,
+                video: video ? (video.paused ? String(Math.round(video.currentTime)) + 's paused' : String(Math.round(video.currentTime)) + 's playing') : 'none',
+                sound: audio ? String(Math.round(audio.currentTime)) + 's / ' + (audio.paused ? 'paused' : 'playing') : (video && !video.muted ? 'from video' : 'none')
+              });
+            };
+            read();
+            const timer = setInterval(read, 1000);
+            return () => { alive = false; clearInterval(timer); };
+          }, [activeId]);
+          if (!info) return null;
+          const yes = t('common.yes');
+          const no = t('common.no');
+          const text = t('video.diag')
+            .replace('{path}', info.path ? yes : no)
+            .replace('{audio}', info.audio ? yes : no)
+            .replace('{muted}', info.muted == null ? '—' : (info.muted ? yes : no))
+            .replace('{video}', info.video)
+            .replace('{sound}', info.sound);
+          return h('div', { className: 'dsh-skin-diag' },
+            h('span', { className: 'dsh-skin-hint' }, text),
+            h('button', {
+              type: 'button', className: 'dsh-skin-mini-btn',
+              onClick: () => {
+                try { navigator.clipboard.writeText('v' + PLUGIN_VERSION + ' · build ' + BUILD + ' · ' + text); } catch (error) { /* ignore */ }
+              }
+            }, t('video.diagCopy'))
+          );
+        }
+
         function VideoGrid(props) {
           const state = useStore(store);
           useLocale();
@@ -4400,7 +5010,6 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           const cards = state.customVideos.slice().reverse();
           return h('div', { className: 'dsh-skin-videos' + (selection && selection.selecting ? ' is-selecting' : '') },
             h(VideoAddTile, { key: 'video-add' }),
-            h(VideoFolderAddTile, { key: 'video-add-folder' }),
             state.videoId !== 'none'
               ? h('div', { className: 'dsh-skin-video-item', key: 'video-none' },
                 h('button', {
@@ -4450,6 +5059,12 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
                   title: t('wallpaper.favorite'),
                   onClick: (event) => { event.stopPropagation(); toggleVideoFavorite(card.id); }
                 }, h(IconStar, { size: 13 })),
+                card.sourcePath ? null : h('button', {
+                  type: 'button',
+                  className: 'dsh-skin-video-relink',
+                  title: t('video.relink'),
+                  onClick: (event) => { event.stopPropagation(); relinkVideo(card); }
+                }, h(IconLink, { size: 12 })),
                 h(VideoDeleteButton, { id: card.id }),
                 active ? h('span', { className: 'dsh-skin-badge' }, h(IconCheck, { size: 10 })) : null
               );
@@ -4476,6 +5091,9 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             ),
             h('p', { className: 'dsh-skin-hint' }, t('section.video.desc')),
             h('p', { className: 'dsh-skin-hint' }, t('video.addHint')),
+            state.customVideos.some((item) => !item.sourcePath)
+              ? h('p', { className: 'dsh-skin-hint dsh-skin-hint-warn' }, t('video.relinkHint'))
+              : null,
             state.videoImporting
               ? h('p', { className: 'dsh-skin-progress' },
                 t('video.importing').replace('{done}', String(state.videoImporting.done)).replace('{total}', String(state.videoImporting.total)))
@@ -4550,6 +5168,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           const state = useStore(store);
           useLocale();
           const fileRef = useRef(null);
+          const folderRef = useRef(null);
+          const [dragging, setDragging] = useState(false);
           const importing = state.videoImporting;
           const atLimit = state.customVideos.length >= MAX_CUSTOM_VIDEOS;
           // Never hard-disable on storage flags — they can be stale and would
@@ -4558,6 +5178,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           // guarded in the handler) so a stuck state can never trap the user.
           const disabled = atLimit;
           const title = atLimit ? t('video.limit') : t('video.addFiles');
+          const folderTitle = atLimit ? t('video.limit') : t('video.addFolder');
           const onFiles = (event) => {
             const input = event.target;
             const files = input.files ? Array.from(input.files) : [];
@@ -4569,14 +5190,54 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               });
             }
           };
-          return h(React.Fragment, null,
+          // The host can enumerate a whole directory (recursive, sorted by
+          // name). Browsers without that route fall back to <input
+          // webkitdirectory>, which the import path also understands.
+          const pickFolder = () => {
+            if (disabled || store.get().videoImporting) return;
+            importVideoFolder().then((result) => {
+              if (result === 'unavailable' && folderRef.current) folderRef.current.click();
+            }).catch((error) => {
+              console.error('[skin-studio] folder import failed', error);
+              store.notify('videoInvalid');
+            });
+          };
+          const onDrop = (event) => {
+            event.preventDefault();
+            setDragging(false);
+            if (disabled) return;
+            filesFromDataTransfer(event.dataTransfer).then((files) => {
+              if (files && files.length) return importVideoFiles(files);
+              store.notify('videoInvalid');
+              return undefined;
+            }).catch((error) => {
+              console.error('[skin-studio] video drop failed', error);
+              store.notify('videoInvalid');
+            });
+          };
+          return h('div', {
+            className: 'dsh-skin-quick-vadd-wrap' + (dragging ? ' is-dragging' : ''),
+            onDragOver: (event) => { event.preventDefault(); if (!disabled) setDragging(true); },
+            onDragLeave: (event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false); },
+            onDrop
+          },
             h('button', {
               type: 'button', className: 'dsh-skin-quick-vadd' + (importing ? ' is-busy' : ''),
               disabled, title, 'aria-label': title,
               onClick: () => { if (!disabled && !store.get().videoImporting) pickAndImportVideos(fileRef).catch((error) => { console.error('[skin-studio] video import failed', error); store.notify('videoInvalid'); }); }
             }, h(IconPlus, { size: 18 })),
+            h('button', {
+              type: 'button', className: 'dsh-skin-quick-vadd-folder',
+              disabled, title: folderTitle, 'aria-label': folderTitle,
+              onClick: pickFolder
+            }, h(IconFolderPlus, { size: 10 })),
             h('input', {
               ref: fileRef, type: 'file', accept: 'video/*', multiple: true,
+              style: { display: 'none' }, onChange: onFiles
+            }),
+            h('input', {
+              ref: folderRef, type: 'file', multiple: true,
+              webkitdirectory: '', directory: '',
               style: { display: 'none' }, onChange: onFiles
             })
           );
@@ -4599,11 +5260,24 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           const seekRef = useRef(null);
           const seekTrackRef = useRef(null);
           const draggingRef = useRef(false);
+          const hoverRef = useRef(false);
+          const seekGuardRef = useRef(0);
+          const pendingSeekRef = useRef(null);
           const dragRef = useRef(null);
           const ctrlHeldRef = useRef(false);
           const hideTimer = useRef(null);
           const hudTimer = useRef(null);
           const [barBottom, setBarBottom] = useState(300);
+
+          // A seek is asynchronous: currentTime keeps reporting the OLD value
+          // for a while after we set it. Remember the target and ignore the
+          // rAF value until the element actually gets there (or times out),
+          // otherwise the thumb visibly snaps back and dragging feels broken.
+          const markSeek = (seconds) => {
+            const value = Number(seconds);
+            pendingSeekRef.current = Number.isFinite(value) ? { time: value, at: Date.now() } : null;
+            seekGuardRef.current = Date.now();
+          };
 
           useEffect(() => {
             if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
@@ -4655,7 +5329,16 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             let raf = null;
             const tick = () => {
               const node = videoElementRef.current;
-              if (node && !dragging) {
+              // Ignore the rAF value while the user drags, and briefly after a
+              // seek: currentTime is still the OLD value until the seek lands,
+              // which is what makes the thumb appear to "jump back".
+              if (node) {
+                const pending = pendingSeekRef.current;
+                if (pending && (Math.abs(Number(node.currentTime) - pending.time) < 1.2 || Date.now() - pending.at > 4000)) {
+                  pendingSeekRef.current = null;
+                }
+              }
+              if (node && !dragging && !draggingRef.current && !pendingSeekRef.current && Date.now() - seekGuardRef.current > 260) {
                 const d = Number.isFinite(node.duration) ? node.duration : 0;
                 setDuration(d);
                 setProgress(d > 0 ? node.currentTime / d : 0);
@@ -4671,7 +5354,12 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             const wake = () => {
               setVisible(true);
               if (hideTimer.current) clearTimeout(hideTimer.current);
-              hideTimer.current = setTimeout(() => setVisible(false), 2600);
+              // Never hide the bar under the pointer: a bar that disappears
+              // mid-drag makes the seek feel broken.
+              hideTimer.current = setTimeout(() => {
+                if (hoverRef.current || draggingRef.current) return;
+                setVisible(false);
+              }, 2600);
             };
             const onMove = (event) => {
               const height = Number(window.innerHeight) || 800;
@@ -4715,6 +5403,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
                 const node = currentVideoNode();
                 if (!node || !Number.isFinite(node.duration) || node.duration <= 0) return;
                 const next = clamp(node.currentTime - dx * 0.04, 0, node.duration);
+                markSeek(next);
                 try { node.currentTime = next; } catch (error) { /* ignore */ }
                 setProgress(next / node.duration);
                 setHud(fmt(next) + ' / ' + fmt(node.duration));
@@ -4754,6 +5443,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               const node = videoElementRef.current;
               if (!node) return;
               const next = clamp(drag.time + (dx / Math.max(1, window.innerWidth * 0.6)) * drag.duration, 0, drag.duration);
+              markSeek(next);
               try { node.currentTime = next; } catch (error) { /* ignore */ }
               setProgress(next / drag.duration);
               setHud(fmt(next) + ' / ' + fmt(drag.duration));
@@ -4779,6 +5469,13 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
 
           if (!active) return null;
 
+          // Playlist order matches stepVideo(): createdAt ascending, wrapping.
+          const playlist = (state.customVideos || []).slice().sort(comparePlaylist);
+          const currentIndex = playlist.findIndex((item) => item.id === state.videoId);
+          const playlistLength = playlist.length;
+          const positionLabel = (currentIndex >= 0 ? currentIndex + 1 : 0) + ' / ' + playlistLength;
+          const canStep = playlistLength > 1;
+
           const currentVideoNode = () => {
             const found = typeof document !== 'undefined' && typeof document.querySelector === 'function' ? document.querySelector('video.dsh-skin-video') : null;
             return found || videoElementRef.current;
@@ -4794,6 +5491,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             if (!rect || !rect.width) return;
             const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
             const next = ratio * node.duration;
+            markSeek(next);
             try { node.currentTime = next; } catch (error) { /* ignore */ }
             setProgress(ratio);
             setHud(fmt(next) + ' / ' + fmt(node.duration));
@@ -4802,10 +5500,11 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           };
 
           const onSeek = (event) => {
-            const value = Number(event.target.value) / 1000;
+            const value = clamp(Number(event.target.value) / 1000, 0, 1);
             setProgress(value);
             const node = currentVideoNode();
             if (node && Number.isFinite(node.duration)) {
+              markSeek(value * node.duration);
               try { node.currentTime = value * node.duration; } catch (error) { /* ignore */ }
             }
           };
@@ -4823,7 +5522,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             'data-visible': visible ? 'true' : 'false',
             key: 'player',
             style: { bottom: barBottom + 'px' },
-            onMouseEnter: () => setVisible(true)
+            onMouseEnter: () => { hoverRef.current = true; setVisible(true); },
+            onMouseLeave: () => { hoverRef.current = false; }
           },
             hud ? h('div', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null,
             h('div', { className: 'dsh-skin-player-seek-wrap', ref: seekTrackRef },
@@ -4852,16 +5552,24 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               }, h(state.videoPlaying ? IconPause : IconPlay, { size: 15 })),
               h('span', { className: 'dsh-skin-player-time' }, fmt(progress * duration)),
               h('span', { className: 'dsh-skin-player-time' }, fmt(duration)),
-              h('button', {
-                type: 'button', className: 'dsh-skin-player-btn',
-                title: t('video.prev'), 'aria-label': t('video.prev'),
-                onClick: () => { stepVideo(-1).catch(() => {}); }
-              }, '⟨'),
-              h('button', {
-                type: 'button', className: 'dsh-skin-player-btn',
-                title: t('video.next'), 'aria-label': t('video.next'),
-                onClick: () => { stepVideo(1).catch(() => {}); }
-              }, '⟩'),
+              h('div', { className: 'dsh-skin-player-spacer' }),
+              // Centred under the seek bar (see .dsh-skin-player-nav): a compact
+              // prev / index / next capsule, the natural "switch video" spot.
+              h('div', { className: 'dsh-skin-player-nav', key: 'nav' },
+                h('button', {
+                  type: 'button', className: 'dsh-skin-player-btn',
+                  title: t('video.prev'), 'aria-label': t('video.prev'),
+                  disabled: !canStep,
+                  onClick: () => { stepVideo(-1).catch(() => {}); }
+                }, h(IconChevron, { size: 14, dir: 'left' })),
+                h('span', { className: 'dsh-skin-player-count', title: t('video.playlist') }, positionLabel),
+                h('button', {
+                  type: 'button', className: 'dsh-skin-player-btn',
+                  title: t('video.next'), 'aria-label': t('video.next'),
+                  disabled: !canStep,
+                  onClick: () => { stepVideo(1).catch(() => {}); }
+                }, h(IconChevron, { size: 14, dir: 'right' }))
+              ),
               h('div', { className: 'dsh-skin-player-spacer' }),
               h('button', {
                 type: 'button', className: 'dsh-skin-player-btn',
