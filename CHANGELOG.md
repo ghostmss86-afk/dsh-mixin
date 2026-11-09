@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.17 — 2026-11-10
+
+- **左下角快捷面板终于有剧集库了**：`QuickVideoSection` 不再是一排 56×40 的缩略图，而是复用设置页的同一个 `VideoGrid`（两列 16:9 卡片）。每张卡下面显示 `Billions.S06E01` 这样的短名，按 `S/E` 升序排列；同目录 ≥2 集聚成文件夹卡，显示集数与 `S06E01 – S06E10` 区间。
+- **点文件夹按顺序连播**：文件夹卡点击后把播放范围锁定到该文件夹（`videoScopeKey`），从第一集开始按 `comparePlaylist` 的顺序播；上一集/下一集也留在这个范围里。递归导入的顶层文件夹用 `folderPath` 记住归属，跨季也能连续播。
+- 删掉了重复的 `QuickVideoAddTile`（添加逻辑只保留 `VideoAddTile` 一份），旧 `.dsh-skin-quick-v*` 样式一并清理；快捷面板现在也能看到真实的文件名与集号，而不是只有一个画面。
+- **自检行补上现场三件套**：`自检` 现在直接写出 `src`（回环源会显示成 `loopback`）、`network`、`ready`；`recordDebug` 的每一条事件也自动附带 `{src, network, ready}`，不用再靠控制台猜「到底有没有源」。
+- 没有剧集编号的散装电影不会因为同在一个下载目录就被误判成「文件夹」。
+
 ## 1.0.16 — 2026-11-10
 
 - **宿主半身压根没挂载**：`apply()` 开头用 `ctx.get('webServer')` 找一个带前缀注册器的 `webServer` 服务，找不到就 `return`。当前宿主暴露的是 `ctx.connection.fetch.register({ path, methods, requestBody, fetch })`，于是 `apply()` 静默返回：回环媒体服务没启动、`/ping` `/pick` `/poster` `/video` `/report` 全部不存在。设置页照旧渲染（客户端 bundle 独立加载），用户看到的就是「聊了半天一个功能都没实现」，而日志里连一条错误都没有。

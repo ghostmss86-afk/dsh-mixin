@@ -100,7 +100,7 @@ check(
 check(
   'episode order and folder scope drive the playlist',
   /function videoRank\(item\)/.test(client) &&
-    /const list = state\.customVideos\s*\n?\s*\.filter\(\(item\) => !folder \|\| videoFolderKey\(item\) === folder\)/.test(client) &&
+    /const list = state\.customVideos\s*\n?\s*\.filter\(\(item\) => !folder \|\| videoScopeKey\(item\) === folder\)/.test(client) &&
     /function playFolder\(folder\)/.test(client),
   'clicking a folder must play it in S/E order, and next/prev must stay in scope'
 );

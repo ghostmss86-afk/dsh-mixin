@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.16';
+  const PLUGIN_VERSION = '1.0.17';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T00:04';
+  const BUILD = '2026-11-10T00:22';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -719,6 +719,7 @@ window.__ModuleLoader__.load({
           key: item.key || null,
           createdAt: item.createdAt || 0,
           sourcePath: item.sourcePath || null,
+          folderPath: item.folderPath || null,
           audioUrl: usableAudioUrl(item.audioUrl) || null
         }))
       };
@@ -1218,6 +1219,25 @@ window.__ModuleLoader__.load({
       return path.slice(0, cut);
     }
 
+    // A folder import is one shelf even when the host walked subdirectories
+    // recursively (Season 1/E01, Season 2/E01, ...). `folderPath` is the
+    // top-level folder the user picked, so prev/next and "play this folder"
+    // never stop at a season boundary.
+    function videoScopeKey(item) {
+      const marked = String((item && item.folderPath) || '');
+      return marked || videoFolderKey(item);
+    }
+
+    // Display grouping is stricter than playlist scoping: two unrelated films
+    // downloaded into ~/Downloads must not turn into a fake "series" tile.
+    // Tagged episodes group by their directory even on old records; anything
+    // else only groups when it carries the explicit folder marker.
+    function videoGroupKey(item) {
+      const marked = String((item && item.folderPath) || '');
+      if (marked) return marked;
+      return videoLabel(item && item.name).tag ? videoFolderKey(item) : '';
+    }
+
     function formatBytes(value) {
       const bytes = Math.max(0, Number(value) || 0);
       if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
@@ -1541,7 +1561,7 @@ window.__ModuleLoader__.load({
       'video.relinkFailed': 'Could not find the original file. Please pick it in the dialog.',
       'common.yes': 'yes',
       'common.no': 'no',
-      'video.diag': 'Diagnostics — original file: {path} · audio track: {audio} · video muted: {muted} · picture: {video} · sound: {sound}',
+      'video.diag': 'Diagnostics — original file: {path} · audio track: {audio} · video muted: {muted} · picture: {video} · sound: {sound} · src: {src} · network: {network} · ready: {ready}',
       'video.diagCopy': 'Copy diagnostics',
       'video.deleteManyConfirm': 'Delete the selected videos?',
       'video.addHint': 'Videos are referenced from their original files, so there is no size limit. Use ＋ for a multi-selection, the folder button for a whole directory (sorted by name), or drop files and folders onto the tile.',
@@ -1722,7 +1742,7 @@ window.__ModuleLoader__.load({
       'video.relinkFailed': '没找到原文件，请在弹窗里手动选择一次。',
       'common.yes': '有',
       'common.no': '无',
-      'video.diag': '自检 —— 原文件：{path}｜音轨：{audio}｜画面静音：{muted}｜画面：{video}｜声音：{sound}',
+      'video.diag': '自检 —— 原文件：{path}｜音轨：{audio}｜画面静音：{muted}｜画面：{video}｜声音：{sound}｜源：{src}｜网络：{network}｜就绪：{ready}',
       'video.diagCopy': '复制自检信息',
       'video.deleteManyConfirm': '要删除选中的视频吗？',
       'video.addHint': '视频直接引用原文件，没有大小限制。用 ＋ 一次多选，点右上角文件夹按钮导入整个目录（按文件名排序），也可以把文件或文件夹直接拖到磁贴上。',
@@ -2129,6 +2149,20 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;pointer-events:none;}
 .dsh-skin-video-veil{position:absolute;inset:0;pointer-events:none;background:var(--dsh-skin-video-veil,transparent);}
 .dsh-skin-videos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+/* Quick panel shelf: two 16:9 cards per row, labels underneath. The old
+   56x40 strip could only show a frame, never which episode it was. */
+.dsh-skin-videos.is-quick{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-meta{padding:6px 8px;gap:1px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-name{font-size:11px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-sub{font-size:10px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-badge{left:4px;bottom:4px;padding:1px 4px;font-size:9px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-count{right:4px;bottom:4px;padding:1px 4px;font-size:9px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-add-item{min-height:0;aspect-ratio:16/9;padding:6px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-add .dsh-skin-add-folder{top:4px;right:4px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-fav,
+.dsh-skin-videos.is-quick .dsh-skin-video-del{width:20px;height:20px;top:4px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-fav{left:4px;}
+.dsh-skin-videos.is-quick .dsh-skin-video-del{right:4px;}
 .dsh-skin-video-item{position:relative;min-width:0;}
 .dsh-skin-video-card{position:relative;display:flex;flex-direction:column;width:100%;padding:0;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-layer-2);cursor:pointer;text-align:left;}
 .dsh-skin-video-card.is-active{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px;}
@@ -2167,27 +2201,6 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-video-toggle{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;cursor:pointer;}
 .dsh-skin-video-toggle.is-on{background:var(--dsw-alias-brand-primary);color:#fff;border-color:transparent;}
 .dsh-skin-video-empty{font-size:12px;color:var(--dsw-alias-label-secondary);padding:8px 0;}
-.dsh-skin-quick-videos{display:flex;flex-wrap:wrap;gap:8px;}
-.dsh-skin-quick-vadd-wrap{position:relative;flex:none;display:flex;}
-.dsh-skin-quick-vadd-wrap.is-dragging .dsh-skin-quick-vadd{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-brand-primary);}
-.dsh-skin-quick-vadd-folder{position:absolute;top:-5px;right:-6px;z-index:2;display:flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:50%;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);cursor:pointer;}
-.dsh-skin-quick-vadd-folder:hover{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);}
-.dsh-skin-quick-vadd-folder:disabled{opacity:.45;cursor:not-allowed;}
-.dsh-skin-quick-vadd{display:flex;align-items:center;justify-content:center;width:56px;height:40px;padding:0;border:1.5px dashed var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;flex:none;}
-.dsh-skin-quick-vadd:hover{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary);}
-.dsh-skin-quick-vadd:disabled{opacity:.5;cursor:not-allowed;}
-.dsh-skin-quick-vthumb{position:relative;width:56px;height:40px;padding:0;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden;background:#000;cursor:pointer;flex:none;}
-.dsh-skin-quick-vthumb video{width:100%;height:100%;object-fit:cover;pointer-events:none;display:block;}
-.dsh-skin-quick-vitem{position:relative;flex:none;}
-.dsh-skin-quick-vfav,.dsh-skin-quick-vdel{position:absolute;top:-4px;z-index:2;display:flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:50%;background:rgba(0,0,0,.7);color:#fff;cursor:pointer;opacity:0;pointer-events:none;}
-.dsh-skin-quick-vfav{left:-4px;}
-.dsh-skin-quick-vdel{right:-4px;}
-.dsh-skin-quick-vitem:hover .dsh-skin-quick-vfav,.dsh-skin-quick-vitem:hover .dsh-skin-quick-vdel,.dsh-skin-quick-vfav.is-on{opacity:1;pointer-events:auto;}
-.dsh-skin-quick-vfav.is-on{color:#ffd166;}
-.dsh-skin-quick-vthumb.is-active{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px;}
-.dsh-skin-quick-vthumb.is-none{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);display:flex;align-items:center;justify-content:center;}
-.dsh-skin-quick-vph{display:block;width:100%;height:100%;background:var(--dsw-alias-bg-layer-1);}
-.dsh-skin-quick-vcheck{position:absolute;right:2px;bottom:2px;display:flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-brand-primary);color:#fff;}
 /* Progress is a whale, not a bar: 15px of ink in the status row. Drag it
    sideways to scrub; the picture stays untouched. */
 .dsh-skin-whale{position:fixed;right:92px;bottom:5px;z-index:40;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.68;transition:opacity .15s ease,transform .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
@@ -2368,6 +2381,21 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             const current = store.get();
             const entry = { at: Date.now(), event, focus: focusDescriptor() };
             if (data) entry.data = data;
+            // Every event carries the live media triple. When the user reports
+            // "it just stopped", the log alone answers whether the element had
+            // a source, a network state and decoded data at that moment.
+            try {
+              const node = typeof document !== 'undefined' && typeof document.querySelector === 'function'
+                ? document.querySelector('video.dsh-skin-video')
+                : null;
+              if (node) {
+                entry.media = {
+                  src: String(node.currentSrc || node.src || '').slice(-120),
+                  network: node.networkState,
+                  ready: node.readyState
+                };
+              }
+            } catch (error) { /* diagnostics must never break the feature */ }
             const log = (Array.isArray(current.debugLog) ? current.debugLog : []).slice(-19);
             log.push(entry);
             store.set({ debugLog: log });
@@ -3142,7 +3170,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             if (item) prepareVideoAudio(item);
             // Picking an episode keeps the series scope; picking a video from a
             // different folder drops it, otherwise next/prev would skip it.
-            const folder = item ? videoFolderKey(item) : '';
+            const folder = item ? videoScopeKey(item) : '';
             const scoped = store.get().videoFolder === folder ? folder : '';
             store.set({ videoId: id, videoMuted: false, videoAudioVersion: 3, videoFolder: scoped });
           } else {
@@ -3163,7 +3191,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const state = store.get();
           const folder = state.videoFolder || '';
           const list = state.customVideos
-            .filter((item) => !folder || videoFolderKey(item) === folder)
+            .filter((item) => !folder || videoScopeKey(item) === folder)
             .sort(comparePlaylist);
           if (!list.length) return;
           const current = list.findIndex((item) => item.id === store.get().videoId);
@@ -3239,7 +3267,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         async function playFolder(folder) {
           if (!folder) return;
           const list = store.get().customVideos
-            .filter((item) => videoFolderKey(item) === folder)
+            .filter((item) => videoScopeKey(item) === folder)
             .sort(comparePlaylist);
           if (!list.length) return;
           store.set({ videoFolder: folder });
@@ -3310,6 +3338,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             videoUrlCache.set(existing.id, url);
             const patch = {
               sourcePath: info.path,
+              folderPath: info.folderPath || existing.folderPath || null,
               key: 'path:' + info.path,
               hasHandle: false,
               fullUrl: url
@@ -3337,6 +3366,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             key: 'path:' + info.path,
             hasHandle: false,
             sourcePath: info.path,
+            folderPath: info.folderPath || null,
             createdAt: Date.now()
           };
           try {
@@ -3507,7 +3537,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             const files = data.files.slice(0, MAX_CUSTOM_VIDEOS);
             const before = new Set(store.get().customVideos.map((item) => item.id));
             for (const info of files) {
-              await importVideoPath(info);
+              await importVideoPath(Object.assign({}, info, { folderPath: data.folder || '' }));
             }
             // Warm the AAC sidecars one by one in the background. A whole
             // season is ~40s per episode; doing it now is what makes
@@ -5524,12 +5554,20 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
               const video = document.querySelector('video.dsh-skin-video');
               const audio = document.querySelector('audio.dsh-skin-video-audio');
               const item = activeId && activeId !== 'none' ? findCustomVideo(activeId) : null;
+              const currentSource = video ? String(video.currentSrc || video.src || '') : '';
+              const source = currentSource
+                .replace(/^https?:\/\/127\.0\.0\.1:\d+/, 'loopback')
+                .replace(/\?.*$/, '')
+                .slice(0, 80);
               setInfo({
                 path: Boolean(item && item.sourcePath),
                 audio: Boolean(item && usableAudioUrl(item.audioUrl)),
                 muted: video ? Boolean(video.muted) : null,
                 video: video ? (video.paused ? String(Math.round(video.currentTime)) + 's paused' : String(Math.round(video.currentTime)) + 's playing') : 'none',
-                sound: audio ? String(Math.round(audio.currentTime)) + 's / ' + (audio.paused ? 'paused' : 'playing') : (video && !video.muted ? 'from video' : 'none')
+                sound: audio ? String(Math.round(audio.currentTime)) + 's / ' + (audio.paused ? 'paused' : 'playing') : (video && !video.muted ? 'from video' : 'none'),
+                src: source || '—',
+                network: video ? String(video.networkState) : '—',
+                ready: video ? String(video.readyState) : '—'
               });
             };
             read();
@@ -5544,7 +5582,10 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             .replace('{audio}', info.audio ? yes : no)
             .replace('{muted}', info.muted == null ? '—' : (info.muted ? yes : no))
             .replace('{video}', info.video)
-            .replace('{sound}', info.sound);
+            .replace('{sound}', info.sound)
+            .replace('{src}', info.src)
+            .replace('{network}', info.network)
+            .replace('{ready}', info.ready);
           return h('div', { className: 'dsh-skin-diag' },
             h('span', { className: 'dsh-skin-hint' }, text),
             h('button', {
@@ -5749,7 +5790,9 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const state = useStore(store);
           useLocale();
           const selection = props.selection;
-          // Newest first, but inside a series the episode order wins.
+          const quick = Boolean(props && props.quick);
+          // Episode order wins over import order; this is what makes S01E01,
+          // S01E02, ... read like a desktop folder instead of a download pile.
           const cards = state.customVideos.slice().sort((a, b) => {
             const rank = videoRank(a) - videoRank(b);
             if (rank !== 0) return rank;
@@ -5758,7 +5801,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const folderGroups = (() => {
             const map = new Map();
             state.customVideos.forEach((item) => {
-              const key = videoFolderKey(item);
+              const key = videoGroupKey(item);
               if (!key) return;
               if (!map.has(key)) map.set(key, []);
               map.get(key).push(item);
@@ -5767,14 +5810,20 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
               .filter((entry) => entry[1].length > 1)
               .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
           })();
-          return h('div', { className: 'dsh-skin-videos' + (selection && selection.selecting ? ' is-selecting' : '') },
+          // The quick panel is a shelf, not the full library: a series that
+          // already has a folder tile does not also dump every episode into
+          // the same 2-column strip.
+          const grouped = new Set();
+          folderGroups.forEach((entry) => entry[1].forEach((item) => grouped.add(item.id)));
+          const shelfCards = quick ? cards.filter((card) => !grouped.has(card.id)) : cards;
+          return h('div', { className: 'dsh-skin-videos' + (quick ? ' is-quick' : '') + (selection && selection.selecting ? ' is-selecting' : '') },
             h(VideoAddTile, { key: 'video-add' }),
             folderGroups.map(([folder, list]) => {
               const ordered = list.slice().sort(comparePlaylist);
               const first = ordered[0];
               const label = videoLabel(first.name);
               const last = videoLabel(ordered[ordered.length - 1].name);
-              const range = label.tag && last.tag ? label.tag + ' – ' + last.tag : String(ordered.length);
+              const range = label.tag && last.tag ? label.tag + ' – ' + last.tag : String(ordered.length) + ' 集';
               const active = state.videoFolder === folder;
               return h('div', { className: 'dsh-skin-video-item dsh-skin-video-folder-item', key: 'folder:' + folder },
                 h('button', {
@@ -5819,8 +5868,10 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                 )
               )
               : null,
-            cards.map((card) => {
+            shelfCards.map((card) => {
               const active = state.videoId === card.id;
+              const label = videoLabel(card.name);
+              const display = label.tag ? label.show + '.' + label.tag : label.show;
               return h('div', { className: 'dsh-skin-video-item', key: card.id },
                 h('button', {
                   type: 'button',
@@ -5849,16 +5900,13 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                       : (card.fullUrl || card.url
                         ? h('video', { src: card.fullUrl || card.url, muted: true, playsInline: true, preload: 'metadata', tabIndex: -1 })
                         : null),
-                    videoLabel(card.name).tag
-                      ? h('span', { className: 'dsh-skin-video-badge' }, videoLabel(card.name).tag)
+                    label.tag
+                      ? h('span', { className: 'dsh-skin-video-badge' }, label.tag)
                       : null
                   ),
                   h('span', { className: 'dsh-skin-video-meta' },
-                    h('span', { className: 'dsh-skin-video-name' }, videoLabel(card.name).show),
-                    h('span', { className: 'dsh-skin-video-sub' },
-                      videoLabel(card.name).tag
-                        ? videoLabel(card.name).tag + ' · ' + formatBytes(card.size)
-                        : formatBytes(card.size))
+                    h('span', { className: 'dsh-skin-video-name' }, display),
+                    h('span', { className: 'dsh-skin-video-sub' }, formatBytes(card.size))
                   )
                 ),
                 h('button', {
@@ -5922,141 +5970,18 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
 
         // Compact video block for the quick panel: an always-visible add tile,
         // thumbnails to switch, an off-option, and playback controls.
+        // Compact video block for the quick panel. It is the same library
+        // component as the settings page, just a narrower shelf: folder tiles
+        // and labelled episode cards instead of a row of anonymous thumbnails.
         function QuickVideoSection() {
           const state = useStore(store);
           useLocale();
           const hasVideos = state.customVideos.length > 0;
-          const cards = state.customVideos.slice().reverse();
           return h(React.Fragment, null,
-            h('div', { className: 'dsh-skin-quick-videos' },
-              h(QuickVideoAddTile, { key: 'q-add' }),
-              state.videoId !== 'none'
-                ? h('button', {
-                  type: 'button', key: 'q-none',
-                  className: 'dsh-skin-quick-vthumb is-none' + (state.videoId === 'none' ? ' is-active' : ''),
-                  title: t('video.none'),
-                  onClick: () => selectVideo('none')
-                }, h(IconClose, { size: 14 }))
-                : null,
-              cards.map((card) => {
-                const active = state.videoId === card.id;
-                const fav = (state.videoFavorites || []).indexOf(card.id) >= 0;
-                return h('div', { className: 'dsh-skin-quick-vitem', key: card.id },
-                  h('button', {
-                    type: 'button',
-                    className: 'dsh-skin-quick-vthumb' + (active ? ' is-active' : ''),
-                    title: card.name, 'aria-pressed': active,
-                    onClick: () => selectVideo(card.id)
-                  },
-                    videoPoster(card)
-                      ? h('img', {
-                        className: 'dsh-skin-video-poster',
-                        src: mediaPath(videoPoster(card)),
-                        alt: '',
-                        loading: 'lazy',
-                        decoding: 'async',
-                        // A missing frame must look like an empty slot, not a
-                        // broken-image icon.
-                        onError: (event) => { event.currentTarget.style.visibility = 'hidden'; }
-                      })
-                      : h('span', { className: 'dsh-skin-quick-vph' }),
-                    active ? h('span', { className: 'dsh-skin-quick-vcheck' }, h(IconCheck, { size: 10 })) : null
-                  ),
-                  h('button', {
-                    type: 'button', className: 'dsh-skin-quick-vfav' + (fav ? ' is-on' : ''),
-                    title: t('wallpaper.favorite'),
-                    onClick: (event) => { event.stopPropagation(); toggleVideoFavorite(card.id); }
-                  }, h(IconStar, { size: 11 })),
-                  h('button', {
-                    type: 'button', className: 'dsh-skin-quick-vdel',
-                    title: t('video.delete'),
-                    onClick: (event) => { event.stopPropagation(); deleteCustomVideo(card.id); }
-                  }, h(IconTrash, { size: 11 }))
-                );
-              })
-            ),
+            h(VideoGrid, { quick: true }),
             hasVideos
               ? h(VideoControls, { compact: true })
               : h('span', { className: 'dsh-skin-video-empty' }, t('video.empty'))
-          );
-        }
-
-        function QuickVideoAddTile() {
-          const state = useStore(store);
-          useLocale();
-          const fileRef = useRef(null);
-          const folderRef = useRef(null);
-          const [dragging, setDragging] = useState(false);
-          const importing = state.videoImporting;
-          const atLimit = state.customVideos.length >= MAX_CUSTOM_VIDEOS;
-          // Never hard-disable on storage flags — they can be stale and would
-          // make the + silently unclickable. Only the limit blocks the button;
-          // a running import shows busy but stays clickable (re-entry is
-          // guarded in the handler) so a stuck state can never trap the user.
-          const disabled = atLimit;
-          const title = atLimit ? t('video.limit') : t('video.addFiles');
-          const folderTitle = atLimit ? t('video.limit') : t('video.addFolder');
-          const onFiles = (event) => {
-            const input = event.target;
-            const files = input.files ? Array.from(input.files) : [];
-            input.value = '';
-            if (files.length) {
-              importVideoFiles(files).catch((error) => {
-                console.error('[skin-studio] video import failed', error);
-                store.notify('videoInvalid');
-              });
-            }
-          };
-          // The host can enumerate a whole directory (recursive, sorted by
-          // name). Browsers without that route fall back to <input
-          // webkitdirectory>, which the import path also understands.
-          const pickFolder = () => {
-            if (disabled || store.get().videoImporting) return;
-            importVideoFolder().then((result) => {
-              if (result === 'unavailable' && folderRef.current) folderRef.current.click();
-            }).catch((error) => {
-              console.error('[skin-studio] folder import failed', error);
-              store.notify('videoInvalid');
-            });
-          };
-          const onDrop = (event) => {
-            event.preventDefault();
-            setDragging(false);
-            if (disabled) return;
-            filesFromDataTransfer(event.dataTransfer).then((files) => {
-              if (files && files.length) return importVideoFiles(files);
-              store.notify('videoInvalid');
-              return undefined;
-            }).catch((error) => {
-              console.error('[skin-studio] video drop failed', error);
-              store.notify('videoInvalid');
-            });
-          };
-          return h('div', {
-            className: 'dsh-skin-quick-vadd-wrap' + (dragging ? ' is-dragging' : ''),
-            onDragOver: (event) => { event.preventDefault(); if (!disabled) setDragging(true); },
-            onDragLeave: (event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false); },
-            onDrop
-          },
-            h('button', {
-              type: 'button', className: 'dsh-skin-quick-vadd' + (importing ? ' is-busy' : ''),
-              disabled, title, 'aria-label': title,
-              onClick: () => { if (!disabled && !store.get().videoImporting) pickAndImportVideos(fileRef).catch((error) => { console.error('[skin-studio] video import failed', error); store.notify('videoInvalid'); }); }
-            }, h(IconPlus, { size: 18 })),
-            h('button', {
-              type: 'button', className: 'dsh-skin-quick-vadd-folder',
-              disabled, title: folderTitle, 'aria-label': folderTitle,
-              onClick: pickFolder
-            }, h(IconFolderPlus, { size: 10 })),
-            h('input', {
-              ref: fileRef, type: 'file', accept: 'video/*', multiple: true,
-              style: { display: 'none' }, onChange: onFiles
-            }),
-            h('input', {
-              ref: folderRef, type: 'file', multiple: true,
-              webkitdirectory: '', directory: '',
-              style: { display: 'none' }, onChange: onFiles
-            })
           );
         }
 
@@ -6301,7 +6226,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           // scope narrows it to that one series.
           const scopeFolder = state.videoFolder || '';
           const playlist = (state.customVideos || [])
-            .filter((item) => !scopeFolder || videoFolderKey(item) === scopeFolder)
+            .filter((item) => !scopeFolder || videoScopeKey(item) === scopeFolder)
             .sort(comparePlaylist);
           const currentIndex = playlist.findIndex((item) => item.id === state.videoId);
           const playlistLength = playlist.length;
