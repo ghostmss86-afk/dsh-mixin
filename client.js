@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.25';
+  const PLUGIN_VERSION = '1.0.26';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T04:13';
+  const BUILD = '2026-11-10T04:41';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2337,11 +2337,9 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 /* Progress is a whale riding a short rail: it travels left → right as the film
    advances, showing exactly how far through you are. Drag it sideways to scrub;
    the picture itself is never covered by a bar. */
-.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:8px;z-index:40;display:flex;align-items:center;gap:10px;padding:3px 10px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(8,10,14,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(0,0,0,.28);transition:opacity .2s ease;}
+.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:52px;z-index:40;display:flex;align-items:center;gap:12px;width:min(720px,calc(100vw - 96px));padding:0;border:0;border-radius:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;transition:opacity .2s ease;}
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
-.dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;flex:none;width:clamp(22px,calc((100vw - 400px)*.8),440px);cursor:pointer;touch-action:none;}
-.dsh-skin-whale-rail{position:absolute;left:11px;right:11px;height:2px;border-radius:1px;background:rgba(255,255,255,.22);pointer-events:none;}
-.dsh-skin-whale-fill{position:absolute;left:11px;width:calc(var(--whale-pct,0)*(100% - 22px) + 11px);height:2px;border-radius:1px;background:linear-gradient(90deg,rgba(77,107,254,.5),rgba(120,160,255,.95));pointer-events:none;transition:width .12s linear;}
+.dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;flex:1 1 auto;min-width:22px;cursor:pointer;touch-action:none;}
 .dsh-skin-whale{position:absolute;top:0;left:calc(var(--whale-pct,0)*(100% - 22px));width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.8;transition:opacity .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
 .dsh-skin-whale::after{content:"";position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,rgba(96,140,255,.55),rgba(96,140,255,.18) 45%,rgba(96,140,255,0) 72%);opacity:0;transform:scale(.7);transition:opacity .22s ease,transform .22s ease;pointer-events:none;}
 .dsh-skin-whale:hover{opacity:1;}
@@ -2350,8 +2348,8 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-whale[data-dragging="true"]::after{opacity:1;transform:scale(1.12);}
 .dsh-skin-whale svg{display:block;position:relative;z-index:1;filter:drop-shadow(0 0 6px rgba(77,107,254,.5));transition:filter .22s ease;}
 .dsh-skin-whale:hover svg{filter:drop-shadow(0 0 9px rgba(120,160,255,.9));}
-.dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.95);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
-.dsh-skin-whale-episode{font-size:10px;line-height:1;color:#ffffff;font-variant-numeric:tabular-nums;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.95);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.62),0 0 10px rgba(0,0,0,.42);}
+.dsh-skin-whale-episode{font-size:10px;line-height:1;color:#ffffff;font-variant-numeric:tabular-nums;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.62),0 0 10px rgba(0,0,0,.42);}
 .dsh-skin-whale-wrap .dsh-skin-player-hud{position:absolute;right:0;bottom:26px;white-space:nowrap;}
 /* The vault chip moved into settings; its slot in the dock is the clock now. */
 body.dsh-skin-video-active .bv-chip{display:none !important;}
@@ -6184,6 +6182,38 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const dragRef = useRef(null);
           const whaleRef = useRef(null);
           const whaleTrackRef = useRef(null);
+          const whaleDockRef = useRef(null);
+          // The strip hugs the bottom-right corner of the chat column: it takes
+          // its right edge, its width and its height above the composer from
+          // the composer card itself, so it tracks any window size, sidebar
+          // toggle or column max-width without guessing pixel offsets.
+          useEffect(() => {
+            if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+            const sync = () => {
+              const el = whaleDockRef.current;
+              if (!el || !el.style) return;
+              const card = document.querySelector('[data-composer-card]')
+                || document.querySelector('[data-composer-dock]')
+                || document.querySelector('[data-composer-seat]');
+              const rect = card && typeof card.getBoundingClientRect === 'function' ? card.getBoundingClientRect() : null;
+              if (!rect || !(rect.width > 160)) {
+                el.style.removeProperty('right');
+                el.style.removeProperty('bottom');
+                el.style.removeProperty('width');
+                return;
+              }
+              el.style.right = Math.max(Math.round(window.innerWidth - rect.right), 6) + 'px';
+              el.style.bottom = Math.max(Math.round(window.innerHeight - rect.top) + 7, 6) + 'px';
+              el.style.width = Math.round(Math.min(rect.width, window.innerWidth - 24)) + 'px';
+            };
+            sync();
+            window.addEventListener('resize', sync);
+            const timer = window.setInterval(sync, 1500);
+            return () => {
+              window.removeEventListener('resize', sync);
+              window.clearInterval(timer);
+            };
+          }, []);
           const whaleDragRef = useRef(null);
           const ctrlHeldRef = useRef(false);
           const hideTimer = useRef(null);
@@ -6578,11 +6608,12 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const episodeTag = video ? videoLabel(video.name).tag : '';
           const bar = h('div', {
             className: 'dsh-skin-whale-wrap',
+            key: 'dock',
+            ref: whaleDockRef,
             'data-scheme': scheme,
             'data-visible': showChip ? 'true' : 'false'
           },
             episodeTag ? h('span', { className: 'dsh-skin-whale-episode', key: 'episode', title: episodeTag }, episodeTag) : null,
-            h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
             h('div', {
               className: 'dsh-skin-whale-track',
               key: 'track',
@@ -6590,10 +6621,9 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
               style: { '--whale-pct': String(whalePct) },
               onPointerDown: onWhaleTrackDown
             },
-              h('span', { className: 'dsh-skin-whale-rail', key: 'rail' }),
-              h('span', { className: 'dsh-skin-whale-fill', key: 'fill' }),
               whale
             ),
+            h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
             hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null
           );
           if (createPortal && typeof document !== 'undefined' && document.body) {
