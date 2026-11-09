@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: '@local/skin-studio',
+  id: 'dsh-plugin-skin-studio',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -16,6 +16,16 @@ window.__ModuleLoader__.load({
       const value = String(path || '');
       if (!value || !value.startsWith('/')) return value;
       return mediaBase() + value;
+    }
+    // Only same-origin media routes can feed the sidecar <audio> element. Older
+    // builds could persist a file:// path here (the "audio codec is natively
+    // supported" reply); an http page can never load it, and its mere presence
+    // muted the <video> — which is exactly the "picture moves, no sound" bug.
+    function usableAudioUrl(value) {
+      const url = String(value || '');
+      if (!url) return '';
+      if (/^file:/i.test(url)) return '';
+      return url;
     }
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
@@ -443,7 +453,8 @@ window.__ModuleLoader__.load({
         customVideos: dedupeBy(
           (Array.isArray(state.customVideos) ? state.customVideos : []).filter(validVideoItem),
           videoIdentity
-        ).slice(0, MAX_CUSTOM_VIDEOS),
+        ).map((item) => (usableAudioUrl(item.audioUrl) ? item : Object.assign({}, item, { audioUrl: null })))
+          .slice(0, MAX_CUSTOM_VIDEOS),
         favorites: (Array.isArray(state.favorites) ? state.favorites : [])
           .filter((id) => typeof id === 'string')
           .slice(0, 500),
@@ -514,7 +525,7 @@ window.__ModuleLoader__.load({
           key: item.key || null,
           createdAt: item.createdAt || 0,
           sourcePath: item.sourcePath || null,
-          audioUrl: item.audioUrl || null
+          audioUrl: usableAudioUrl(item.audioUrl) || null
         }))
       };
       // Before the IndexedDB migration completes, keep the legacy data URLs in
@@ -2469,7 +2480,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
 
         async function prepareVideoAudio(item) {
           if (!item || !item.id) return '';
-          if (item.audioUrl) return item.audioUrl;
+          const known = usableAudioUrl(item.audioUrl);
+          if (known) return known;
           if (audioPrepareCache.has(item.id)) return audioPrepareCache.get(item.id);
           const task = (async () => {
             if (!item.sourcePath) return '';
@@ -2478,11 +2490,18 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               const response = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
               if (!response.ok) throw new Error('HTTP ' + response.status);
               const data = await response.json();
-              const audioUrl = data && (data.url || data.file);
+              // data.url is the ffmpeg-built AAC sidecar. When it is empty the
+              // audio codec is natively supported (or there is no audio track)
+              // and the <video> element must stay unmuted to play it itself.
+              const audioUrl = usableAudioUrl(data && data.url);
               if (audioUrl) {
                 mergeVideoItem(item.id, { audioUrl });
                 store.set({}, { persist: true });
-                return data.url;
+                return audioUrl;
+              }
+              if (item.audioUrl) {
+                mergeVideoItem(item.id, { audioUrl: null });
+                store.set({}, { persist: true });
               }
               return '';
             } catch (error) {
@@ -2954,7 +2973,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               key: record.key,
               hasHandle: record.hasHandle,
               sourcePath: record.sourcePath || null,
-              audioUrl: record.audioUrl || null
+              audioUrl: usableAudioUrl(record.audioUrl) || null
             });
           });
           current.customVideos.forEach((item) => {

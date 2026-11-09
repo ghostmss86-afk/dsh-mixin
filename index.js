@@ -75,7 +75,11 @@ async function ensureAudio(source) {
   if (!info.isFile()) throw new Error('not a file');
   const codec = await probeAudioCodec(source);
   if (!codec) return { codec: '', url: '', reason: 'no-audio' };
-  if (SUPPORTED_AUDIO.has(codec)) return { codec, url: '', file: 'file://' + encodeURI(source), reason: 'supported' };
+  // Natively supported audio stays inside the <video> element. Handing the
+  // client a file:// URL here used to force it into "sidecar mode": the video
+  // was muted and the sidecar could never load over http(s), so every ordinary
+  // mp4 lost its sound. Report no sidecar and let the video play its own track.
+  if (SUPPORTED_AUDIO.has(codec)) return { codec, url: '', reason: 'supported' };
   const key = createHash('sha1')
     .update(`${source}:${info.size}:${info.mtimeMs}:${codec}:aac192`)
     .digest('hex')
@@ -186,6 +190,36 @@ async function pickVideo() {
     if (!source) return { ok: false, canceled: true };
     const info = await stat(source);
     return { ok: true, path: source, name: basename(source), size: info.size };
+  } catch (error) {
+    if (/User canceled|-128/i.test(String(error && error.message || ''))) return { ok: false, canceled: true };
+    throw error;
+  }
+}
+
+async function pickVideos() {
+  // Multi-select variant used by the "add local videos" tile: one dialog,
+  // many files, real POSIX paths (needed for host streaming + audio probing).
+  const script = [
+    'set theFiles to choose file with prompt "选择视频壁纸" of type {"public.movie"} with multiple selections allowed',
+    'set out to ""',
+    'repeat with f in theFiles',
+    'set out to out & (POSIX path of f) & linefeed',
+    'end repeat',
+    'return out'
+  ].join('\n');
+  try {
+    const result = await run('osascript', ['-e', script]);
+    const paths = (result.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!paths.length) return { ok: false, canceled: true };
+    const files = [];
+    for (const source of paths) {
+      try {
+        const info = await stat(source);
+        if (!info.isFile()) continue;
+        files.push({ path: source, name: basename(source), size: info.size });
+      } catch (error) { /* skip vanished file */ }
+    }
+    return { ok: true, files };
   } catch (error) {
     if (/User canceled|-128/i.test(String(error && error.message || ''))) return { ok: false, canceled: true };
     throw error;
@@ -338,6 +372,13 @@ export function apply(ctx) {
       if (url.pathname === `${ROUTE_PREFIX}/pick-folder`) {
         try {
           return json(await pickVideoFolder());
+        } catch (error) {
+          return json({ ok: false, error: String(error && error.message || error) }, 500);
+        }
+      }
+      if (url.pathname === `${ROUTE_PREFIX}/pick-many`) {
+        try {
+          return json(await pickVideos());
         } catch (error) {
           return json({ ok: false, error: String(error && error.message || error) }, 500);
         }

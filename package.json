@@ -1,15 +1,18 @@
 {
-  "name": "@local/skin-studio",
+  "name": "dsh-plugin-skin-studio",
   "version": "1.0.1",
-  "private": true,
   "type": "module",
-  "description": "Custom color skins and chat wallpapers with one-click switching.",
+  "description": "皮肤与壁纸插件：8 套预设与自定义配色、渐变/图片/视频聊天壁纸、收藏与实时预览，数据只存本机。",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
+    "dsh",
     "skin",
     "theme",
-    "wallpaper"
+    "wallpaper",
+    "video-wallpaper",
+    "换肤",
+    "壁纸"
   ],
   "license": "MIT",
   "author": "ghostmss86-afk",
@@ -33,6 +36,7 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
+    "icon-180.png",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -52,5 +56,11 @@
         "@deepseek-ai/dsh-client-ui-theme"
       ]
     }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

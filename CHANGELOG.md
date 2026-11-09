@@ -2,6 +2,8 @@
 
 ## 1.0.1 — 2026-11-09
 
+- 包名改为 `dsh-plugin-skin-studio`，可用 `dsh plugin add github:ghostmss86-afk/dsh-skin-studio` 一条命令安装。
+
 - 视频壁纸：为 E-AC-3 / DTS / TrueHD 等 Chromium 解不了的音轨生成 AAC 侧车，画面保持原片。
 - 视频壁纸：新增容器转封装兜底，浏览器播不了的封装先转 MP4 再播。
 - 壁纸数量上限从早期的低阈值放宽，修复旧逻辑把一张图片合并成数百条记录、导致「添加」永久不可用的问题。

@@ -28,7 +28,15 @@
 
 前置条件：DeepSeek Harness `0.2.2-rc.1`（本机验证版本）。视频壁纸的音频兜底需要 `ffmpeg` 与 `ffprobe` 在 `PATH` 里；没有时视频无声，画面正常。
 
-### 方式一：profile link（跟随仓库更新）
+### 方式一：从 GitHub 安装
+
+```bash
+dsh plugin --profile web add github:ghostmss86-afk/dsh-skin-studio
+```
+
+装完重启 DeepSeek Harness。之后升级用同一条命令加 `@<commit>` 或重装。
+
+### 方式二：profile link（跟随仓库更新）
 
 ```bash
 git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-studio
@@ -39,11 +47,11 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 ```json
 {
   "dependencies": {
-    "@local/skin-studio": "link:/Users/you/plugins/skin-studio"
+    "dsh-plugin-skin-studio": "link:/Users/you/plugins/skin-studio"
   },
   "dsh": {
     "profile": {
-      "bundles": ["@local/skin-studio"]
+      "bundles": ["dsh-plugin-skin-studio"]
     }
   }
 }
@@ -51,11 +59,11 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 
 在该 profile 目录执行 `pnpm install`，然后重启 DeepSeek Harness。
 
-### 方式二：直接放目录
+### 方式三：直接放目录
 
-把仓库内容放到 profile 的 `node_modules/@local/skin-studio`，bundle 配置同上。刷新页面即可生效。
+把仓库内容放到 profile 的 `node_modules/dsh-plugin-skin-studio`，bundle 配置同上。刷新页面即可生效。
 
-> 包名固定为 `@local/skin-studio`，与 profile 的依赖键一一对应；改名后 loader 找不到插件。
+> 依赖键、`bundles` 与 `package.json` 的 `name` 必须都是 `dsh-plugin-skin-studio`，三者不一致时 loader 找不到插件。
 
 ## 使用
 
