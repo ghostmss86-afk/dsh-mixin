@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.26';
+  const PLUGIN_VERSION = '1.0.27';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T04:41';
+  const BUILD = '2026-11-10T04:51';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2374,7 +2374,6 @@ body.dsh-skin-video-active .bv-chip{display:none !important;}
 #root,[data-dsh-root]{transition:opacity .38s cubic-bezier(.22,.61,.36,1),transform .38s cubic-bezier(.22,.61,.36,1);}
 body.dsh-skin-cinema #root,body.dsh-skin-cinema [data-dsh-root]{opacity:0 !important;transform:translateY(14px) scale(.994);pointer-events:none !important;}
 body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{transition:opacity .38s ease,transform .38s ease;}
-body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{opacity:0 !important;pointer-events:none !important;}
 @media (max-width:520px){.dsh-skin-quick{left:12px;right:12px;width:auto;bottom:72px;}}
 @media (hover:none){.dsh-skin-del,.dsh-skin-fav,.dsh-skin-photo-del,.dsh-skin-select{opacity:1;pointer-events:auto;}}
 @media (prefers-reduced-motion:no-preference){
@@ -6163,18 +6162,11 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const [progress, setProgress] = useState(0);
           const [duration, setDuration] = useState(0);
           const [dragging, setDragging] = useState(false);
-          const [visible, setVisible] = useState(true);
-          // The whole bottom-right cluster (clock + whale) only exists while a
-          // wallpaper is actually playing; pausing leaves it up for 3s so the
-          // user can click it again, then it disappears and the row is clean.
-          const playing = Boolean(state.videoPlaying);
-          const [holdClock, setHoldClock] = useState(false);
-          useEffect(() => {
-            if (playing) { setHoldClock(true); return undefined; }
-            const timer = setTimeout(() => setHoldClock(false), 3000);
-            return () => clearTimeout(timer);
-          }, [playing]);
-          const showChip = active && (playing || holdClock);
+          // The strip belongs to the video backdrop, not to playback state: it
+          // stays put while the video is paused so the whale is still there to
+          // click, and only goes away when the wallpaper stops being a video
+          // (switched to a photo, gradients, or none).
+          const showChip = active;
           const [hud, setHud] = useState('');
           const draggingRef = useRef(false);
           const hoverRef = useRef(false);
@@ -6217,7 +6209,6 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           }, []);
           const whaleDragRef = useRef(null);
           const ctrlHeldRef = useRef(false);
-          const hideTimer = useRef(null);
           const hudTimer = useRef(null);
           const [barBottom, setBarBottom] = useState(300);
 
@@ -6300,30 +6291,6 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             raf = rafFn(tick);
             return () => { if (raf) cafFn(raf); };
           }, [active, dragging, video && video.source]);
-
-          useEffect(() => {
-            if (!active || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
-            const wake = () => {
-              setVisible(true);
-              if (hideTimer.current) clearTimeout(hideTimer.current);
-              // Never hide the bar under the pointer: a bar that disappears
-              // mid-drag makes the seek feel broken.
-              hideTimer.current = setTimeout(() => {
-                if (hoverRef.current || draggingRef.current) return;
-                setVisible(false);
-              }, 2600);
-            };
-            const onMove = (event) => {
-              const height = Number(window.innerHeight) || 800;
-              if (event.clientY > height - 220) wake();
-            };
-            wake();
-            window.addEventListener('mousemove', onMove, true);
-            return () => {
-              window.removeEventListener('mousemove', onMove, true);
-              if (hideTimer.current) clearTimeout(hideTimer.current);
-            };
-          }, [active]);
 
           useEffect(() => {
             if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;

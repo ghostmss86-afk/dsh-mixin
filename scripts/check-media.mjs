@@ -82,10 +82,11 @@ check(
 );
 
 check(
-  'the last playback cluster is opt-in while playing',
-  /const showChip = active && \(playing \|\| holdClock\)/.test(client) &&
+  'the strip follows the video backdrop, not the play state',
+  /const showChip = active;/.test(client) &&
+    !/holdClock/.test(client) &&
     /data-visible/.test(client),
-  'the clock + whale must disappear when nothing is playing'
+  'pausing must not hide the whale: it is the only way back to play, so it may only go away when the wallpaper stops being a video'
 );
 
 
