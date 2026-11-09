@@ -58,11 +58,27 @@ check(
 );
 
 check(
-  'the client learns the origin once and re-renders',
-  /fetch\('\/api\/skin-studio\/media\/ping'/.test(client) &&
-    /window\.__skinMediaOrigin = String\(data\.mediaServer\)/.test(client) &&
+  'the media origin is learned before first paint and re-renders',
+  /function loadMediaOriginScript\(\)/.test(client) &&
+    /origin\.js/.test(client) &&
+    /function applyMediaOrigin\(value\)/.test(client) &&
     /store\.touch\(\)/.test(client),
-  'without store.touch() the first paint keeps the unusable relative URL'
+  'a fetch-only origin can lose the race with the host listen(); use the script tag'
+);
+
+check(
+  'a failed load retries the origin instead of giving up',
+  /if \(!window\.__skinMediaOrigin\) \{[\s\S]{0,120}syncMediaOrigin\(0\)/.test(client),
+  'NotSupportedError on dsh-app:// must trigger one more origin lookup'
+);
+
+check(
+  'media keys are claimed through the Media Session API',
+  /navigator\.mediaSession/.test(client) &&
+    /bind\('previoustrack'/.test(client) &&
+    /bind\('nexttrack'/.test(client) &&
+    /session\.metadata = new MediaMetadata/.test(client),
+  'macOS routes F7/F8/F9 to the active Now Playing session, not to a focused page'
 );
 
 check(

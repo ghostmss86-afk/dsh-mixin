@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.14 — 2026-11-09
+
+- **修掉「改了像没改」的真正原因**：`/ping` 在宿主 `server.listen()` 还没触发 `listening` 时就返回了 `mediaServer: ""`，客户端拿到空串后既不重试也不再问，于是永远停在 `dsh-app://` 的相对地址上（`FFmpegDemuxer: open context failed` / `NETWORK_NO_SOURCE`）。宿主现在提供 `ready()` 并在 `/ping` 里 `await`；`base()` 不再返回未绑定端口。实测 `startMediaServer()` 后立刻取 `base()` 为 `""`，`await ready()` 后为 `http://127.0.0.1:PORT/<token>`。
+- 新增 `GET /api/skin-studio/media/origin.js`：普通 `<script>` 标签同步写入 `window.__skinMediaOrigin`，**在首帧渲染之前**就拿到回环源，不再依赖可能输掉竞速的 `fetch`。客户端仍保留 `/ping` 兜底 + 6 次退避重试，并把每次失败写进 `debugLog`（`media:origin-missing` / `media:origin-ping` / `media:origin-fetch-failed`）。
+- `<video>` 报错且当时还没有回环源时，不再一次性判死：自动重新取一次源并重建 `src`，只有「已知源但仍然失败」才提示播放失败。
+- **F7/F8/F9 交给系统媒体键通道**：接入 Media Session API（`previoustrack` / `nexttrack` / `play` / `pause` / `seekbackward` / `seekforward`），并发布 `MediaMetadata`（剧名 + SxxExx + 封面）与 `playbackState`。macOS 把媒体键送给当前 Now Playing 会话，因此「没有别的播放器在跑时默认归我们」是系统级行为，窗口失焦也有效；窗口聚焦时的 keydown 监听保留为兜底。
+- `scripts/check-media.mjs` 三条断言改写/新增：源必须由 `<script>` 在首帧前学到、失败必须重试、媒体键必须走 Media Session。
+
 ## 1.0.13 — 2026-11-09
 
 - **视频卡片终于有封面**：宿主新增 `/poster?path=`，用 ffmpeg 抽一帧（长片跳过 2:30 的前情，480p 以上缩到 560px），按 `path+size+mtime` 落到 `posters/` 缓存。实测首帧 200ms、二次命中即出，单张约 15KB。卡片从「每个格子里塞一个 `<video>` 的黑框」换成 `loading="lazy"` 的 `<img>`。

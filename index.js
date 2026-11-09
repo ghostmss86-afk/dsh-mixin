@@ -490,11 +490,20 @@ function startMediaServer() {
     }
   });
   server.on('error', (error) => console.warn('[skin-studio] media server error', error && error.message));
+  // `listen` is async: address() is null until 'listening' fires. Reporting an
+  // empty base here is what silently disabled the loopback path in 1.0.12.
+  const ready = new Promise((resolve) => {
+    const settle = () => resolve();
+    server.once('listening', settle);
+    server.once('error', settle);
+    setTimeout(settle, 1500);
+  });
   server.listen(0, '127.0.0.1');
   const port = () => {
     try { return server.address().port; } catch (error) { return 0; }
   };
   return {
+    ready: () => ready,
     base: () => (port() ? `http://127.0.0.1:${port()}${prefix}` : ''),
     close: () => { try { server.close(); } catch (error) { /* ignore */ } }
   };
@@ -553,7 +562,21 @@ export function apply(ctx) {
           return json({ ok: false, reason: 'no-report' });
         }
       }
+      if (url.pathname === `${ROUTE_PREFIX}/origin.js`) {
+        // A classic <script> tag cannot hit CORS, cannot be blocked by the
+        // dsh-app:// shell and runs before the first render, so the media
+        // origin is known synchronously instead of "eventually, maybe".
+        const mediaBase = mediaServer.base();
+        const host = typeof webServer.getOrigin === 'function' ? webServer.getOrigin() : '';
+        const body = 'window.__skinMediaOrigin=' + JSON.stringify(mediaBase) +
+          ';window.__skinMediaHost=' + JSON.stringify(host || '') +
+          ';window.dispatchEvent(new Event("skin:media-origin"));';
+        return new Response(body, {
+          headers: { 'content-type': 'application/javascript; charset=utf-8', 'cache-control': 'no-store' }
+        });
+      }
       if (url.pathname === `${ROUTE_PREFIX}/ping`) {
+        await mediaServer.ready();
         // The renderer may run from the desktop's dsh-app:// shell, where a
         // relative /api/... URL is not a playable media URL. Handing back the
         // real HTTP origin lets the client build absolute src values instead

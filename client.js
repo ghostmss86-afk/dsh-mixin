@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.13';
+  const PLUGIN_VERSION = '1.0.14';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T23:37';
+  const BUILD = '2026-11-09T23:52';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2282,26 +2282,66 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         }
         const t = ctx.locale.bind('skin-studio');
 
+        // Large video cannot be served over the dsh-app:// shell (Range is
+        // dropped, FFmpeg reports DEMUXER_ERROR_COULD_NOT_OPEN). The host runs a
+        // token-scoped loopback HTTP server for exactly this.
+        //
+        // Getting that origin must not depend on a fetch that can race the
+        // host's async listen(): in 1.0.12 `/ping` answered before the socket
+        // was bound, returned an empty string, and the client silently stayed
+        // on the unusable dsh-app:// URL forever. A plain <script> tag runs
+        // before the first render and cannot be raced, so it is the primary
+        // channel; /ping stays as a diagnostic fallback.
+        function applyMediaOrigin(value) {
+          const origin = String(value || '');
+          if (!origin || !/^https?:\/\//.test(origin)) return false;
+          if (window.__skinMediaOrigin === origin) return true;
+          window.__skinMediaOrigin = origin;
+          try { recordDebug('media:origin', { origin }); } catch (error) { /* ignore */ }
+          return true;
+        }
+
+        function loadMediaOriginScript() {
+          try {
+            if (document.querySelector('script[data-skin-media-origin]')) return;
+            const tag = document.createElement('script');
+            tag.src = '/api/skin-studio/media/origin.js?t=' + Date.now();
+            tag.async = false;
+            tag.dataset.skinMediaOrigin = '1';
+            tag.onload = () => {
+              if (applyMediaOrigin(window.__skinMediaOrigin)) store.touch();
+              else recordDebug('media:origin-missing', {});
+            };
+            tag.onerror = () => recordDebug('media:origin-script-failed', {});
+            (document.head || document.documentElement).appendChild(tag);
+          } catch (error) {
+            recordDebug('media:origin-script-error', { message: String((error && error.message) || error) });
+          }
+        }
+
         const store = createStore(loadState());
-        // Large video cannot be served over the dsh-app:// shell (Range gets
-        // dropped and the element reports NotSupportedError). The host runs a
-        // token-scoped loopback HTTP server for exactly this; ask it once and
-        // let mediaPath() prefix every media URL. Until the ping lands, paths
-        // stay relative and same-origin — never a stale hard-coded port.
-        try {
-          fetch('/api/skin-studio/media/ping', { headers: { accept: 'application/json' } })
-            .then((response) => (response.ok ? response.json() : null))
-            .then((data) => {
-              if (!data || !data.mediaServer) return;
-              window.__skinMediaOrigin = String(data.mediaServer);
-              recordDebug('media:origin', { origin: String(data.mediaServer) });
-              // Re-render subscribers so every <video>/<audio> src is rebuilt
-              // against the loopback origin. Without this the first paint keeps
-              // the relative URL and the element never recovers.
-              store.touch();
-            })
-            .catch(() => { /* relative paths keep working */ });
-        } catch (error) { /* fetch unavailable in tests */ }
+        loadMediaOriginScript();
+        if (window.__skinMediaOrigin) applyMediaOrigin(window.__skinMediaOrigin);
+
+        // Retries cover the case where the script tag lost a race with the
+        // host's route mount: never give up after a single attempt.
+        function syncMediaOrigin(attempt) {
+          const tries = typeof attempt === 'number' ? attempt : 0;
+          try {
+            fetch('/api/skin-studio/media/ping', { headers: { accept: 'application/json' }, cache: 'no-store' })
+              .then((response) => (response.ok ? response.json() : null))
+              .then((data) => {
+                if (data && applyMediaOrigin(data.mediaServer)) { store.touch(); return; }
+                recordDebug('media:origin-ping', { mediaServer: data ? String(data.mediaServer || '') : 'no-body' });
+                if (tries < 6) setTimeout(() => syncMediaOrigin(tries + 1), 500 * (tries + 1));
+              })
+              .catch((error) => {
+                recordDebug('media:origin-fetch-failed', { message: String((error && error.message) || error) });
+                if (tries < 6) setTimeout(() => syncMediaOrigin(tries + 1), 500 * (tries + 1));
+              });
+          } catch (error) { /* fetch unavailable in tests */ }
+        }
+        if (!window.__skinMediaOrigin) syncMediaOrigin(0);
         const fullUrlCache = new Map();
         const videoUrlCache = new Map();
         // In-memory FileSystemFileHandle cache (id -> handle). Handles let a
@@ -3136,6 +3176,60 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
 
         // Posters are generated once per (path, size, mtime) by the host and
         // cached as JPEG; the grid only ever loads an <img>.
+        // Hardware media keys. macOS delivers F7/F8/F9 to the process that owns
+        // the Now Playing session, so claiming that session is what makes the
+        // keys "default to us" whenever no other player is active. The window
+        // keydown listener stays as the focused-window fallback.
+        function setupMediaSession(getNode, onStep) {
+          if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+          const session = navigator.mediaSession;
+          const bind = (action, handler) => {
+            try { session.setActionHandler(action, handler); } catch (error) { /* unsupported */ }
+          };
+          bind('play', () => { const node = getNode(); if (node) node.play().catch(() => {}); store.set({ videoPlaying: true }); });
+          bind('pause', () => { const node = getNode(); if (node) node.pause(); store.set({ videoPlaying: false }); });
+          bind('previoustrack', () => onStep(-1));
+          bind('nexttrack', () => onStep(1));
+          bind('seekbackward', (details) => {
+            const node = getNode();
+            if (!node) return;
+            const by = details && details.seekOffset ? details.seekOffset : 10;
+            try { node.currentTime = Math.max(0, node.currentTime - by); } catch (error) { /* ignore */ }
+          });
+          bind('seekforward', (details) => {
+            const node = getNode();
+            if (!node) return;
+            const by = details && details.seekOffset ? details.seekOffset : 10;
+            try { node.currentTime = Math.min(node.duration || 1e9, node.currentTime + by); } catch (error) { /* ignore */ }
+          });
+        }
+
+        function publishNowPlaying(node, video, playing) {
+          if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+          const session = navigator.mediaSession;
+          if (!video) { session.metadata = null; session.playbackState = 'none'; return; }
+          try {
+            const label = videoLabel(video.name);
+            if (typeof MediaMetadata === 'function') {
+              const art = videoPoster(video);
+              session.metadata = new MediaMetadata({
+                title: label.tag ? label.show + ' ' + label.tag : label.show,
+                artist: label.tag ? label.show : 'DeepSeek Harness',
+                album: '皮肤与壁纸',
+                artwork: art ? [{ src: mediaPath(art), sizes: '560x315', type: 'image/jpeg' }] : []
+              });
+            }
+            session.playbackState = playing ? 'playing' : 'paused';
+            if (node && Number.isFinite(node.duration) && node.duration > 0) {
+              session.setPositionState({
+                duration: node.duration,
+                playbackRate: node.playbackRate || 1,
+                position: Math.min(node.currentTime || 0, node.duration)
+              });
+            }
+          } catch (error) { /* metadata is best-effort */ }
+        }
+
         function videoPoster(item) {
           if (!item || !item.sourcePath) return '';
           return '/api/skin-studio/media/poster?path=' + encodeURIComponent(item.sourcePath);
@@ -4969,6 +5063,17 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             setSidecarBroken(false);
           }, [video && video.source]);
 
+          // Claim the OS "Now Playing" slot so F7/F8/F9 reach this player; it
+          // only holds the keys while we are the active session, which is
+          // exactly "default to us unless another player is running".
+          useEffect(() => {
+            setupMediaSession(() => videoRef.current, (delta) => stepVideo(delta));
+          }, []);
+
+          useEffect(() => {
+            publishNowPlaying(videoRef.current, video, Boolean(state.videoPlaying));
+          }, [video && video.id, video && video.source, state.videoPlaying, video && video.name]);
+
           useEffect(() => {
             if (video && video.sourcePath && !video.audioUrl) {
               prepareVideoAudio(video);
@@ -5190,6 +5295,15 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                   ready: node ? node.readyState : -1
                 });
                 console.warn('[skin-studio] video could not be loaded', video.source);
+                // If this failed on the dsh-app:// URL, the loopback origin is
+                // simply not known yet. Ask again, then let the src rebuild;
+                // only give up when a retry also fails with an origin in place.
+                if (!window.__skinMediaOrigin) {
+                  syncMediaOrigin(0);
+                  setFailed(false);
+                  store.touch();
+                  return;
+                }
                 setFailed(true);
                 store.notify('videoPlaybackError');
               },
