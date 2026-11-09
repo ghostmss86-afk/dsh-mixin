@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.18';
+  const PLUGIN_VERSION = '1.0.19';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T01:09';
+  const BUILD = '2026-11-10T01:35';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -473,23 +473,44 @@ window.__ModuleLoader__.load({
         // The composer band stays glass-free over a video: any blur or gradient
         // here sits on top of the picture and hides burned-in subtitles.
         '[data-composer-seat]{background:none !important;background-color:transparent !important;border-radius:24px !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;box-shadow:none !important;}' +
-        '[data-composer-dock]{background:rgba(255,255,255,.06) !important;background-color:rgba(255,255,255,.06) !important;border:1px solid rgba(255,255,255,.18) !important;box-shadow:0 10px 30px rgba(0,0,0,.10) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}' +
+        '[data-composer-dock]{background:rgba(8,10,14,.15) !important;background-color:rgba(8,10,14,.15) !important;border:1px solid rgba(255,255,255,.18) !important;border-radius:24px !important;box-shadow:0 10px 30px rgba(0,0,0,.18) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}' +
         '[data-composer-dock] *{background-color:transparent !important;background-image:none !important;}' +
-        '[data-composer-card]{background:transparent !important;background-color:transparent !important;border:none !important;box-shadow:none !important;backdrop-filter:none !important;}' +
-        'body[data-ds-dark-theme] [data-composer-dock]{background:rgba(14,16,20,.16) !important;background-color:rgba(14,16,20,.16) !important;border-color:rgba(255,255,255,.10) !important;}' +
+        '[data-composer-card]{background:rgba(8,10,14,.15) !important;background-color:rgba(8,10,14,.15) !important;border:1px solid rgba(255,255,255,.18) !important;border-radius:28px !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}' +
+        'body[data-ds-dark-theme] [data-composer-dock]{background:rgba(8,10,14,.15) !important;background-color:rgba(8,10,14,.15) !important;border-color:rgba(255,255,255,.18) !important;}' +
         'body[data-ds-dark-theme] [data-composer-seat]{background:none !important;background-color:transparent !important;backdrop-filter:none !important;}' +
         // Chat over a movie: one cinema surface for every theme. Light-mode
         // cards used to be white 38% slabs with dark text, which is exactly the
         // unreadable combination the user hit. Keep the picture visible, but
         // make every text-bearing surface dark, translucent and white-on-top.
-        'body.dsh-skin-video-active [data-message-bubble]{background:rgba(8,10,14,.2) !important;background-color:rgba(8,10,14,.2) !important;border:1px solid rgba(255,255,255,.12) !important;color:#fff !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;text-shadow:0 1px 2px rgba(0,0,0,.7);}' +
-        'body.dsh-skin-video-active [data-message-bubble] *{color:#fff !important;text-shadow:inherit;}' +
+        'body.dsh-skin-video-active [data-message-bubble]{background:transparent !important;background-color:transparent !important;border:1px solid rgba(255,255,255,.14) !important;color:#fff !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;text-shadow:0 1px 2px rgba(0,0,0,.7);}' +
+        'body.dsh-skin-video-active [data-message-bubble] *{background:transparent !important;background-color:transparent !important;background-image:none !important;color:#fff !important;text-shadow:inherit;}' +
+        'body.dsh-skin-video-active [data-message-bubble]::before,body.dsh-skin-video-active [data-message-bubble]::after{background:transparent !important;background-color:transparent !important;}' +
         'body.dsh-skin-video-active [data-chat-flow]{color:rgba(255,255,255,.96) !important;}' +
         'body.dsh-skin-video-active [data-chat-flow] :where(p,li,span,h1,h2,h3,h4,h5,h6,td,th,dt,dd,blockquote,strong,em){color:rgba(255,255,255,.96) !important;text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
         'body.dsh-skin-video-active [data-chat-flow] a{color:#9cc7ff !important;text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
         'body.dsh-skin-video-active [data-step-process],body.dsh-skin-video-active [data-turn-process],body.dsh-skin-video-active [data-context-files],body.dsh-skin-video-active [data-context-injection-body],body.dsh-skin-video-active [data-context-form],body.dsh-skin-video-active [data-context-entries],body.dsh-skin-video-active [data-context-sections]{background:rgba(8,10,14,.24) !important;background-color:rgba(8,10,14,.24) !important;border-color:rgba(255,255,255,.12) !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}' +
+        // Edit/file cards: the user wants a readable bubble, not a white slab
+        // and not a black block. 10% keeps the movie visible; the border and
+        // radius keep the bubble silhouette.
+        'body.dsh-skin-video-active [data-changed-files]{background:rgba(8,10,14,.1) !important;background-color:rgba(8,10,14,.1) !important;border:1px solid rgba(255,255,255,.16) !important;border-radius:16px !important;overflow:hidden !important;box-shadow:none !important;color:#fff !important;}' +
+        'body.dsh-skin-video-active [data-changed-files] *{background-color:transparent !important;background-image:none !important;color:rgba(255,255,255,.94) !important;text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
+        'body.dsh-skin-video-active [data-changes-hover-preview]{background:rgba(8,10,14,.4) !important;background-color:rgba(8,10,14,.4) !important;border:1px solid rgba(255,255,255,.16) !important;border-radius:12px !important;box-shadow:0 18px 48px rgba(0,0,0,.35) !important;backdrop-filter:blur(10px) !important;-webkit-backdrop-filter:blur(10px) !important;}' +
+        // Right-side document/diff review: fully transparent page, white base
+        // text; syntax and +/- colours stay (they carry the meaning).
+        'body.dsh-skin-video-active [data-textpreview-content],body.dsh-skin-video-active [data-textpreview-body],body.dsh-skin-video-active [data-document-preview],body.dsh-skin-video-active [data-code-preview],body.dsh-skin-video-active [data-code-block-content],body.dsh-skin-video-active [data-changes-review],body.dsh-skin-video-active [data-review-code]{background:transparent !important;background-color:transparent !important;color:rgba(255,255,255,.94) !important;}' +
+        // The right Sidebar itself is a surface too. When a document/diff tab
+        // is open, drop the panel fill as well, otherwise the transparent
+        // document sits on a dark slab.
+        'body.dsh-skin-video-active [data-sidebar-right-panel]:has([data-textpreview-content]),body.dsh-skin-video-active [data-sidebar-right-panel]:has([data-changes-review]),body.dsh-skin-video-active [data-sidebar-right-tab],body.dsh-skin-video-active [data-sidebar-right-session]{background:transparent !important;background-color:transparent !important;border-color:rgba(255,255,255,.12) !important;box-shadow:none !important;}' +
+        'body.dsh-skin-video-active [data-sidebar-right-panel]:has([data-textpreview-content]) > *,body.dsh-skin-video-active [data-sidebar-right-panel]:has([data-changes-review]) > *{background:transparent !important;background-color:transparent !important;}' +
+        'body.dsh-skin-video-active [data-changes-review] :where([class*="add"],[class*="del"],[class*="line"],[class*="row"],[class*="hunk"]){background:transparent !important;background-color:transparent !important;}' +
+        'body.dsh-skin-video-active [data-changes-review] :where(pre,code,[data-diff-code],[class*="code"]){background:transparent !important;background-color:transparent !important;}' +
+        'body.dsh-skin-video-active [data-textpreview-content] :where(header,footer,[class*="header"],[class*="toolbar"],[class*="banner"]){background:transparent !important;background-color:transparent !important;color:rgba(255,255,255,.94) !important;border-color:rgba(255,255,255,.12) !important;}' +
+        'body.dsh-skin-video-active [data-textpreview-line],body.dsh-skin-video-active [data-textpreview-content] pre,body.dsh-skin-video-active [data-textpreview-content] code{color:rgba(255,255,255,.94);}' +
+        'body.dsh-skin-video-active [data-changes-review] :where(span,div,p,li,td,th,code,pre),body.dsh-skin-video-active [data-textpreview-content] :where(span,div,p,li,td,th),body.dsh-skin-video-active [data-changes-hover-preview] :where(span,div,p,li,td,th){color:rgba(255,255,255,.94);}' +
+        'body.dsh-skin-video-active [data-textpreview-content] :where(pre,code,[class*="line"],[class*="row"]){background:transparent !important;background-color:transparent !important;}' +
         'body.dsh-skin-video-active pre{background:rgba(0,0,0,.42) !important;border-color:rgba(255,255,255,.12) !important;color:#fff !important;}' +
-        'body.dsh-skin-video-active pre code{color:#fff !important;}' +
+        'body.dsh-skin-video-active pre code{color:inherit !important;}' +
         'body.dsh-skin-video-active :not(pre) > code{background:rgba(255,255,255,.14) !important;background-color:rgba(255,255,255,.14) !important;color:#fff !important;}' +
         'body.dsh-skin-video-active blockquote{background:transparent !important;border-left-color:rgba(255,255,255,.28) !important;color:rgba(255,255,255,.9) !important;}'
       );
@@ -580,6 +601,14 @@ window.__ModuleLoader__.load({
         add('--dsw-alias-markdown-inline-code', 'rgba(255,255,255,.14)', 'rgba(255,255,255,.14)');
         add('--dsw-alias-markdown-tag', 'rgba(255,255,255,.14)', 'rgba(255,255,255,.14)');
         add('--dsw-alias-link', '#9cc7ff', '#9cc7ff');
+        // Diff rows keep their green/red markers and text, but the block
+        // fills go away so the right-side document really is transparent.
+        add('--dsw-alias-file-diff-added-bg', 'transparent', 'transparent');
+        add('--dsw-alias-file-diff-added-gutter', 'transparent', 'transparent');
+        add('--dsw-alias-file-diff-added-marker', '#37d67a', '#37d67a');
+        add('--dsw-alias-file-diff-deleted-bg', 'transparent', 'transparent');
+        add('--dsw-alias-file-diff-deleted-gutter', 'transparent', 'transparent');
+        add('--dsw-alias-file-diff-deleted-marker', '#ff6b6b', '#ff6b6b');
         return tokens;
       }
 

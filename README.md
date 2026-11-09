@@ -2,7 +2,7 @@
 
 [![check](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml/badge.svg)](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.0.18-informational.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.0.19-informational.svg)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-DSH%200.2.2--rc.1-lightgrey.svg)](#兼容性)
 
 皮肤与壁纸是 DeepSeek Harness 的界面插件。它给界面换一套配色，并给聊天区铺上渐变、图片或视频壁纸；视频会整理成有封面、剧名和集号的卡片，文件夹可以整季按顺序播放。改动立即生效，选择保存在当前浏览器里。

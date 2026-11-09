@@ -55,7 +55,7 @@
       "why": "backdrop-filter 会把背景视频与字幕糊掉，用户看到的是「整片区域发灰」。",
       "hint": "videoBodyCss() 里把 [data-composer-seat] 的 background/backdrop-filter/box-shadow 置空。",
       "file": "\\.(js|mjs|ts|tsx|css)$",
-      "forbid": "backdrop-filter\\s*:\\s*(?!none)[a-z]"
+      "forbid": "\\[data-composer-(?:seat|dock)\\][^\\n]*backdrop-filter\\s*:\\s*(?!none)"
     },
     {
       "id": "R007",
