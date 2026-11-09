@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.29';
+  const PLUGIN_VERSION = '1.0.30';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T05:04';
+  const BUILD = '2026-11-10T05:17';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -531,6 +531,9 @@ window.__ModuleLoader__.load({
 
       if (skin.hasPalette) {
         add('--dsw-alias-brand-primary', skin.light.brand, skin.dark.brand);
+        // The whale and the composer halo read this: they should take the colour the
+        // user picked in 皮肤, not the neutral brand token.
+        add('--dsh-skin-accent', skin.light.brand, skin.dark.brand);
         if (!videoBackdrop) {
           add('--dsw-alias-label-primary', skin.light.label, skin.dark.label);
           add('--dsw-alias-label-secondary', skin.light.labelSecondary, skin.dark.labelSecondary);
@@ -2345,24 +2348,24 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 body [data-composer-card]{transition:box-shadow .16s ease,border-color .16s ease;}
 body [data-composer-card]:hover,
 body [data-composer-card]:focus-within{
-  border-color:rgba(160,195,255,.72) !important;
+  border-color:color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 74%,white) !important;
   box-shadow:
-    0 0 0 1px rgba(150,185,255,.62),
-    0 0 18px 3px rgba(105,145,255,.5),
-    0 0 50px 18px rgba(77,107,254,.42) !important;
+    0 0 0 1px color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 62%,transparent),
+    0 0 18px 3px color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 52%,transparent),
+    0 0 50px 18px color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 44%,transparent) !important;
 }
 .dsh-skin-whale-wrap{position:fixed;right:92px;bottom:52px;z-index:40;display:flex;align-items:center;gap:12px;width:min(720px,calc(100vw - 96px));padding:0;border:0;border-radius:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none;transition:opacity .2s ease;}
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
 .dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;flex:1 1 auto;min-width:22px;cursor:pointer;touch-action:none;}
 .dsh-skin-whale-wrap:not([data-visible="false"]) .dsh-skin-whale-track{pointer-events:auto;}
-.dsh-skin-whale{position:absolute;top:0;left:calc(var(--whale-pct,0)*(100% - 22px));width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.8;transition:opacity .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
-.dsh-skin-whale::after{content:"";position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,rgba(96,140,255,.55),rgba(96,140,255,.18) 45%,rgba(96,140,255,0) 72%);opacity:0;transform:scale(.7);transition:opacity .22s ease,transform .22s ease;pointer-events:none;}
+.dsh-skin-whale{position:absolute;top:0;left:calc(var(--whale-pct,0)*(100% - 22px));width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:var(--dsh-skin-accent,#4d6bfe);cursor:grab;opacity:.8;transition:opacity .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
+.dsh-skin-whale::after{content:"";position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 55%,transparent),color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 18%,transparent) 45%,transparent 72%);opacity:0;transform:scale(.7);transition:opacity .22s ease,transform .22s ease;pointer-events:none;}
 .dsh-skin-whale:hover{opacity:1;}
 .dsh-skin-whale:hover::after{opacity:1;transform:scale(1);}
 .dsh-skin-whale[data-dragging="true"]{cursor:grabbing;opacity:1;}
 .dsh-skin-whale[data-dragging="true"]::after{opacity:1;transform:scale(1.12);}
-.dsh-skin-whale svg{display:block;position:relative;z-index:1;filter:drop-shadow(0 0 6px rgba(77,107,254,.5));transition:filter .22s ease;}
-.dsh-skin-whale:hover svg{filter:drop-shadow(0 0 9px rgba(120,160,255,.9));}
+.dsh-skin-whale svg{display:block;position:relative;z-index:1;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 50%,transparent));transition:filter .22s ease;}
+.dsh-skin-whale:hover svg{filter:drop-shadow(0 0 9px color-mix(in srgb,color-mix(in srgb,var(--dsh-skin-accent,#4d6bfe) 78%,white) 92%,transparent));}
 .dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.95);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.62),0 0 10px rgba(0,0,0,.42);}
 .dsh-skin-whale-episode{font-size:10px;line-height:1;color:#ffffff;font-variant-numeric:tabular-nums;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.62),0 0 10px rgba(0,0,0,.42);}
 .dsh-skin-whale-wrap .dsh-skin-player-hud{position:absolute;right:0;bottom:26px;white-space:nowrap;}

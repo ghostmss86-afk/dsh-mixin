@@ -144,6 +144,16 @@ expect(
   'the halo is the only cue that the pointer sits on the input'
 )
 
+// 9. The halo and the whale must take the colour the user picked in 皮肤,
+//    not a hard-coded blue.
+expect(
+  'the halo and the whale follow the accent',
+  /--dsh-skin-accent/.test(source) &&
+    /color:var\(--dsh-skin-accent,#4d6bfe\)/.test(source) &&
+    /color-mix\(in srgb,var\(--dsh-skin-accent,#4d6bfe\) 44%,transparent\)/.test(source),
+  'both read --dsh-skin-accent with the old blue only as a fallback'
+)
+
 if (failures.length) {
   process.stdout.write(`\n${failures.length} wiring check(s) failed\n`)
   process.exitCode = 1

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.30 — 2026-11-10
+
+- **发光和鲸鱼跟着皮肤颜色走**：新增 `--dsh-skin-accent`，在 `buildTokens` 里和 `--dsw-alias-brand-primary` 一起写（`skin.light.brand` / `skin.dark.brand`，即用户点选的那个颜色，已按对比度做过一次提亮）。快捷面板「皮肤」里换哪个颜色，输入框光晕和小鲸鱼就跟着变——不再是写死的 DeepSeek 蓝。
+- `.dsh-skin-whale` 的 `color`、`::after` 光斑、`svg` 的 `drop-shadow`（含 hover 加亮）全部改成 `color-mix(in srgb, var(--dsh-skin-accent,#4d6bfe) …)`；输入框光晕的描边与三层阴影同理。`#4d6bfe` 留作 fallback，所以没选皮肤（默认）时仍是原来那道蓝。
+- 只有色相跟着换，透明度/宽度/模糊半径与 1.0.29 一致。
+
+
 ## 1.0.29 — 2026-11-10
 
 - 实机截图核对后把光晕调亮一档：描边 `rgba(160,195,255,.72)`、近晕 `0 0 18px 3px / .5`、外晕 `0 0 50px 18px / .42`。1.0.28 的那版描边已经能看出蓝环，但外圈的漫反射在深色视频背景上只铺开十来像素，偏弱；现在光散能明显爬到框外近 50px，又还没亮到像一块发光面板。
