@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-skin-studio",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "type": "module",
   "description": "皮肤与壁纸插件：8 套预设与自定义配色、渐变/图片/视频聊天壁纸、收藏与实时预览，数据只存本机。",
   "keywords": [
@@ -58,7 +58,7 @@
     }
   },
   "scripts": {
-    "check": "node --check client.js && node --check index.js && node scripts/check-modes.mjs && node scripts/check-media.mjs",
+    "check": "node --check client.js && node --check index.js && node scripts/check-modes.mjs && node scripts/check-media.mjs && node scripts/check-host.mjs",
     "version:check": "node scripts/check-version.mjs .",
     "guard": "node scripts/guard.mjs --root . --rules scripts/guard.rules.json",
     "verify": "npm run check && npm run version:check && npm run guard",

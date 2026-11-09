@@ -514,23 +514,12 @@ function startMediaServer() {
 export const __internals = { startMediaServer, handleVideo, CACHE_DIR, ROUTE_PREFIX };
 
 export function apply(ctx) {
-  let webServer;
-  try {
-    webServer = typeof ctx.get === 'function' ? ctx.get('webServer') : ctx.webServer;
-  } catch (error) {
-    webServer = undefined;
-  }
-  if (!webServer || typeof webServer.register !== 'function') {
-    console.warn('[skin-studio] webServer service unavailable; video audio helper disabled');
-    return;
-  }
-
   const mediaServer = startMediaServer();
   if (typeof ctx.effect === 'function') ctx.effect(() => () => mediaServer.close());
 
   const resource = async (request) => {
     try {
-      const url = new URL(request.url);
+      const url = new URL(request.url, 'http://127.0.0.1');
       if (request.method === 'OPTIONS') {
         return new Response(null, {
           status: 204,
@@ -666,19 +655,81 @@ export function apply(ctx) {
     }
   };
 
-  try {
-    const dispose = webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, resource });
-    if (typeof ctx.effect === 'function') ctx.effect(() => dispose);
-    const origin = typeof webServer.getOrigin === 'function' ? webServer.getOrigin() : '';
-    if (origin && typeof webServer.tapIndex === 'function') {
-      const tap = webServer.tapIndex((html) => {
-        const boot = `<script>window.__skinMediaOrigin=${JSON.stringify(origin)}</script>`;
-        return String(html).includes('</head>') ? String(html).replace('</head>', boot + '</head>') : boot + String(html);
-      });
-      if (typeof ctx.effect === 'function') ctx.effect(() => tap);
+  // ---- route registration -------------------------------------------------
+  // The Host service that serves plugin HTTP routes is `connection.fetch`
+  // (`ctx.connection.fetch.register({ path, methods, requestBody, fetch })`).
+  // 1.0.15 and earlier looked for a `webServer` service with a prefix
+  // registrar; when the Host stopped exposing it, `apply()` returned at the
+  // guard above, so *every* route vanished at once: the settings page still
+  // rendered (its bundle is client-side) while /pick, /poster, /video and
+  // /report all 404'd. That is why "nothing was implemented" while the UI was
+  // clearly there. Register exact paths, and keep a prefix fallback for older
+  // Hosts that only offer `webServer`.
+  const ROUTES = [
+    ['/ping', ['GET', 'HEAD', 'OPTIONS']],
+    ['/origin.js', ['GET', 'HEAD']],
+    ['/prepare', ['GET', 'POST', 'OPTIONS']],
+    ['/pick', ['GET', 'POST', 'OPTIONS']],
+    ['/pick-many', ['GET', 'POST', 'OPTIONS']],
+    ['/pick-folder', ['GET', 'POST', 'OPTIONS']],
+    ['/relink', ['GET', 'OPTIONS']],
+    ['/proxy', ['GET', 'OPTIONS']],
+    ['/proxy-file', ['GET', 'HEAD', 'OPTIONS']],
+    ['/poster', ['GET', 'HEAD', 'OPTIONS']],
+    ['/video', ['GET', 'HEAD', 'OPTIONS']],
+    ['/report', ['GET', 'HEAD', 'POST', 'OPTIONS']]
+  ];
+
+  const registerWith = (register, effect) => {
+    let count = 0;
+    for (const [suffix, methods] of ROUTES) {
+      const path = ROUTE_PREFIX + suffix;
+      try {
+        effect(
+          () => register({ path, methods, requestBody: 'buffered', fetch: (request) => resource(request) }),
+          'skin-studio: ' + path
+        );
+        count += 1;
+      } catch (error) {
+        console.warn('[skin-studio] route registration failed', path, error && error.message);
+      }
     }
-    console.log('[skin-studio] media route registered at', ROUTE_PREFIX, origin);
+    console.log('[skin-studio] routes registered', count, 'of', ROUTES.length);
+  };
+
+  if (typeof ctx.inject === 'function') {
+    try {
+      ctx.inject(['connection'], (scope) => {
+        const fetch = scope.connection && scope.connection.fetch;
+        if (!fetch || typeof fetch.register !== 'function') {
+          console.warn('[skin-studio] connection.fetch unavailable');
+          return;
+        }
+        registerWith(
+          (options) => fetch.register(options),
+          (factory, label) => scope.effect(factory, label)
+        );
+      });
+      return;
+    } catch (error) {
+      console.warn('[skin-studio] connection.fetch inject failed', error && error.message);
+    }
+  }
+
+  // Legacy Hosts: one prefix registrar.
+  let webServer;
+  try {
+    webServer = typeof ctx.get === 'function' ? ctx.get('webServer') : ctx.webServer;
   } catch (error) {
-    console.warn('[skin-studio] media route registration failed', error && error.message);
+    webServer = undefined;
+  }
+  if (webServer && typeof webServer.register === 'function') {
+    try {
+      const dispose = webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, resource });
+      if (typeof ctx.effect === 'function') ctx.effect(() => dispose);
+      console.log('[skin-studio] legacy prefix route registered at', ROUTE_PREFIX);
+    } catch (error) {
+      console.warn('[skin-studio] legacy route registration failed', error && error.message);
+    }
   }
 }

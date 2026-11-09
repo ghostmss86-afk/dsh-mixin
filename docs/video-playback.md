@@ -192,3 +192,35 @@ npm run guard        # 等价于 node scripts/guard.mjs --root . --rules scripts
 
 三层里任何一层不验，就会在另外两层里瞎猜。`scripts/check-media.mjs` 把第 2 层的
 关键约束（回环服务存在、令牌校验、资产才改写）变成了可执行的断言。
+
+## 十一、宿主半身没挂载时，界面看起来完全正常
+
+1.0.16 之前，`apply()` 的第一件事是：
+
+```js
+const webServer = ctx.get('webServer');
+if (!webServer) return;            // ← 静默返回，什么都不会注册
+```
+
+宿主早就换成了 `ctx.connection.fetch.register({ path, methods, requestBody, fetch })`，
+所以这段代码每次都直接 `return`。后果是**所有**宿主能力同时消失：回环媒体服务没起、
+`/ping` `/pick` `/poster` `/video` `/report` 全是 404。而设置页仍然渲染（客户端 bundle
+独立加载），卡片、鲸鱼、按钮都在——用户看到的就是「聊了半天，一个功能都没实现」。
+
+这条最贵，因为它没有任何报错：没有异常、没有日志、没有红色。判断它只看一件事：
+
+```bash
+PID=$(pgrep -f dsh-desktop-host | head -1)
+lsof -nP -iTCP -sTCP:LISTEN -a -p $PID
+```
+
+正常的插件应当**多出一个**监听在 `127.0.0.1:<随机端口>` 的回环服务（带 24 位 hex 令牌前缀）。
+只剩 Web GUI 那一个端口，就说明 `apply()` 在半路返回了。
+
+防复发：`scripts/check-host.mjs` 在桩上下文里跑 `apply()`，断言 12 条路由真的注册、
+`/report` 声明了 `requestBody: 'buffered'`、回环服务真的在监听、错误令牌回 403、
+`apply()` 至少产生一个 effect。它进 `npm run check`，所以「注册数为 0」是 CI 红，而不是
+一句「没实现」。
+
+教训：**注册类代码必须能被断言「注册了几个」**。返回值是 `void` 的装配函数，等于把
+失败伪装成成功。

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.16 — 2026-11-10
+
+- **宿主半身压根没挂载**：`apply()` 开头用 `ctx.get('webServer')` 找一个带前缀注册器的 `webServer` 服务，找不到就 `return`。当前宿主暴露的是 `ctx.connection.fetch.register({ path, methods, requestBody, fetch })`，于是 `apply()` 静默返回：回环媒体服务没启动、`/ping` `/pick` `/poster` `/video` `/report` 全部不存在。设置页照旧渲染（客户端 bundle 独立加载），用户看到的就是「聊了半天一个功能都没实现」，而日志里连一条错误都没有。
+- 判据是进程的监听端口：宿主 PID 只监听 `127.0.0.1:51716`（Web GUI），没有随机端口的回环服务 ⇒ 确认 `startMediaServer()` 从未执行。
+- 改为 `ctx.inject(['connection'], scope => scope.connection.fetch.register(...))`，逐条注册 12 个精确路径（`/ping` `/origin.js` `/prepare` `/pick` `/pick-many` `/pick-folder` `/relink` `/proxy` `/proxy-file` `/poster` `/video` `/report`），`POST /report` 显式声明 `requestBody: 'buffered'`。旧的 `webServer` 前缀注册保留为降级分支。
+- 新增 `scripts/check-host.mjs`（进 `npm run check`）：用桩上下文调 `apply()`，断言 12 条路由真的注册、`/report` 声明了 buffered、回环服务真的在监听、错误令牌回 403、`apply()` 至少产生一个 effect。**「apply 没注册任何东西」从此会让 CI 变红**，而不是变成一句「没实现」。
+
 ## 1.0.15 — 2026-11-09
 
 - 封面图也走回环源（`MEDIA_ASSET` 增加 `poster`），并在 `<img>` 加载失败时隐藏而不是显示裂图占位。
