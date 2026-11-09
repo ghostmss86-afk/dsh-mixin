@@ -620,10 +620,14 @@ window.__ModuleLoader__.load({
         // restart, so a fresh load always starts audible.
         videoMuted: false,
         // Playback volume defaults to maximum: the wallpaper is the point, and a
-        // half-volume default read as "no sound" on laptop speakers.
-        videoVolume: Number.isFinite(Number(state.videoVolume)) ? clamp(Number(state.videoVolume), 0, 1) : 1,
+        // half-volume default read as "no sound" on laptop speakers. Volume
+        // that was saved before 1.0.9 (<= 0.5 by default) is lifted once, so an
+        // existing profile starts audible too.
+        videoVolume: Number(state.videoAudioVersion) < 3
+          ? 1
+          : (Number.isFinite(Number(state.videoVolume)) ? clamp(Number(state.videoVolume), 0, 1) : 1),
         videoLoop: state.videoLoop !== false,
-        videoAudioVersion: 2,
+        videoAudioVersion: 3,
         // 'none' shows the app, 'pure' hides every surface but the wallpaper,
         // 'normal' is the same picture as 'none' but holds the lock. The lock
         // survives a reload on purpose: that is what "locked" means.
@@ -691,7 +695,7 @@ window.__ModuleLoader__.load({
         videoMuted: false,
         videoVolume: state.videoVolume,
         videoLoop: state.videoLoop,
-        videoAudioVersion: 2,
+        videoAudioVersion: 3,
         modeLock: state.modeLock || MODE_NONE,
         modeKeys: {
           pure: normalizeModeKey(state.modeKeys && state.modeKeys.pure),
@@ -3016,7 +3020,7 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
             await ensureVideoUrl(id);
             const item = findCustomVideo(id);
             if (item) prepareVideoAudio(item);
-            store.set({ videoId: id, videoMuted: false, videoAudioVersion: 2 });
+            store.set({ videoId: id, videoMuted: false, videoAudioVersion: 3 });
           } else {
             store.set({ videoId: 'none' });
           }
@@ -3114,7 +3118,7 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
             } catch (error) {
               console.error('[skin-studio] video path upgrade failed', error);
             }
-            store.set({ videoId: existing.id, videoPlaying: true, videoMuted: false, videoAudioVersion: 2 }, { persist: true });
+            store.set({ videoId: existing.id, videoPlaying: true, videoMuted: false, videoAudioVersion: 3 }, { persist: true });
             if (findCustomVideo(existing.id)) prewarmAudio([existing.id]);
             return;
           }
@@ -3150,7 +3154,7 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
             videoId: id,
             videoPlaying: true,
             videoMuted: false,
-            videoAudioVersion: 2
+            videoAudioVersion: 3
           }, { persist: true });
           prewarmAudio([id]);
         }
@@ -3195,7 +3199,7 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
           }
           // The blob is now redundant: dropping it frees the multi-GB copy.
           try { await idbDeleteVideoBlob(id); } catch (error) { /* ignore */ }
-          store.set({ videoId: id, videoPlaying: true, videoMuted: false, videoAudioVersion: 2 }, { persist: true });
+          store.set({ videoId: id, videoPlaying: true, videoMuted: false, videoAudioVersion: 3 }, { persist: true });
           const fresh = findCustomVideo(id);
           // Queue instead of firing directly: a repair sweep can relink a whole
           // season at once, and sixteen parallel ffmpeg jobs would starve the
