@@ -113,15 +113,51 @@ window.__ModuleLoader__.load({
       return false;
     }
 
+    // The keystroke's own target is the most reliable signal: focus can be
+    // restored asynchronously (Lexical does exactly that), while the event
+    // target is where the character was actually going to land. Shadow DOM
+    // retargets events, so composedPath() is consulted as well.
+    function caretInTextField(event) {
+      if (isTextEntryFocused()) return true;
+      if (!event || typeof event !== 'object') return false;
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+      const candidates = [event.target, event.srcElement].concat(Array.isArray(path) ? path : []);
+      for (const node of candidates) {
+        if (!node || node.nodeType !== 1) continue;
+        const tag = String(node.tagName || '').toUpperCase();
+        if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+        if (tag === 'INPUT') {
+          const type = String(node.getAttribute('type') || 'text').toLowerCase();
+          if (!NON_TEXT_INPUTS.has(type)) return true;
+        }
+        if (node.isContentEditable) return true;
+        if (String(node.getAttribute('role') || '').toLowerCase() === 'textbox') return true;
+        if (node.hasAttribute && node.hasAttribute('data-lexical-editor')) return true;
+        if (node.hasAttribute && node.hasAttribute('data-composer-input')) return true;
+      }
+      return false;
+    }
+
+    // Compact dump used by the persisted debug log. The whole point is that a
+    // recurrence can be explained from stored state instead of a screenshot.
+    function focusDescriptor() {
+      if (typeof document === 'undefined') return 'no-document';
+      const node = document.activeElement;
+      if (!node) return 'none';
+      const tag = String(node.tagName || '').toLowerCase() || 'unknown';
+      const type = node.getAttribute && node.getAttribute('type');
+      return tag + (type ? '[' + type + ']' : '') + (node.isContentEditable ? '[ce]' : '');
+    }
+
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.7';
+  const PLUGIN_VERSION = '1.0.8';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T21:41';
+  const BUILD = '2026-11-09T22:04';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -574,6 +610,15 @@ window.__ModuleLoader__.load({
           pure: normalizeModeKey(state.modeKeys && state.modeKeys.pure),
           normal: normalizeModeKey(state.modeKeys && state.modeKeys.normal)
         },
+        // Opt-in, and off by default: a wallpaper must never decide on its own
+        // that the interface should fade away while the user is reading or
+        // typing. The explicit pure-mode hotkey covers the "clean screen" case.
+        cinemaAutoHide: state.cinemaAutoHide === true,
+        // Last 20 mode/media events, persisted so a recurrence can be explained
+        // from storage instead of a screenshot.
+        debugLog: (Array.isArray(state.debugLog) ? state.debugLog : [])
+          .filter((entry) => entry && typeof entry === 'object' && typeof entry.event === 'string')
+          .slice(-20),
         notice: typeof state.notice === 'string' ? state.notice : null,
         importing: state.importing && typeof state.importing === 'object' ? state.importing : null,
         videoImporting: state.videoImporting && typeof state.videoImporting === 'object' ? state.videoImporting : null,
@@ -630,6 +675,8 @@ window.__ModuleLoader__.load({
           pure: normalizeModeKey(state.modeKeys && state.modeKeys.pure),
           normal: normalizeModeKey(state.modeKeys && state.modeKeys.normal)
         },
+        cinemaAutoHide: state.cinemaAutoHide === true,
+        debugLog: (Array.isArray(state.debugLog) ? state.debugLog : []).slice(-20),
         customVideos: state.customVideos.map((item) => ({
           id: item.id,
           name: item.name,
@@ -1365,10 +1412,15 @@ window.__ModuleLoader__.load({
       'mode.unset': 'Click, then press a combination',
       'mode.recording': 'Press a combination…',
       'mode.needModifier': 'Add Ctrl, ⌘ or Alt — a bare key would break typing.',
+      'mode.pureHint': 'Pure mode · press Esc twice to come back',
       'mode.conflict': 'That combination already belongs to the other mode.',
       'mode.clear': 'Clear shortcut',
       'mode.hint': 'First press locks the mode, the second press unlocks it. While one mode is locked the other shortcut is ignored. In pure mode, Esc twice is the emergency exit.',
       'mode.now': 'Now:',
+      'mode.autoHide': 'Auto-hide the interface',
+      'mode.autoHide.desc': 'Fades the app 5 seconds after the last input while a video plays. Off by default; it never hides while you are typing.',
+      'mode.on': 'On',
+      'mode.off': 'Off',
       'mode.state.pure': 'pure (locked)',
       'mode.state.normal': 'normal (locked)',
       'mode.state.none': 'normal',
@@ -1535,10 +1587,15 @@ window.__ModuleLoader__.load({
       'mode.unset': '点击后按下组合键',
       'mode.recording': '请按下组合键…',
       'mode.needModifier': '至少要有 Ctrl / ⌘ / Alt 之一，否则会抢走正常打字。',
+      'mode.pureHint': '纯净模式 · 连按两次 Esc 退出',
       'mode.conflict': '这个组合已经被另一种模式占用。',
       'mode.clear': '清除快捷键',
       'mode.hint': '第一次按锁定该模式，再按一次解除锁定。锁定期间另一个快捷键不生效。在纯净模式下，连按两次 Esc 是应急出口。',
       'mode.now': '当前：',
+      'mode.autoHide': '界面自动隐藏（沉浸）',
+      'mode.autoHide.desc': '播放视频时，停止操作 5 秒后隐藏界面。默认关闭；输入文字时永不隐藏。',
+      'mode.on': '已开启',
+      'mode.off': '已关闭',
       'mode.state.pure': '纯净（已锁定）',
       'mode.state.normal': '正常（已锁定）',
       'mode.state.none': '正常',
@@ -1930,7 +1987,9 @@ window.__ModuleLoader__.load({
 .dsh-skin-mode-state{font-size:12px;color:var(--dsw-alias-label-secondary);margin:8px 0 0;}
 /* Pure mode: every body child but the portaled wallpaper layer disappears.
    The <style> tags live inside #root and still apply while #root is hidden. */
-html[data-dsh-skin-mode="pure"] body > :not(.dsh-skin-video-layer){display:none !important;}
+html[data-dsh-skin-mode="pure"] body > :not(.dsh-skin-video-layer):not(.dsh-skin-pure-hint){display:none !important;}
+.dsh-skin-pure-hint{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:2147483001;padding:8px 16px;border-radius:999px;background:rgba(18,18,22,.72);color:#fff;font-size:12px;line-height:1.4;letter-spacing:.02em;pointer-events:none;animation:dsh-skin-hint-in .22s ease-out;}
+@keyframes dsh-skin-hint-in{from{opacity:0;transform:translate(-50%,6px);}to{opacity:1;transform:translate(-50%,0);}}
 html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hidden !important;}
 .dsh-skin-slider{display:flex;align-items:center;gap:10px;flex:none;}
 .dsh-skin-range{width:168px;accent-color:var(--dsw-alias-brand-primary);}
@@ -2131,6 +2190,20 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         // How many times a sidecar URL 404'd for one record; see the <audio>
         // onError handler.
         const audioRetry = new Map();
+
+        // Append one diagnostic event to the persisted ring buffer. Every path
+        // that can hide the interface or stop the picture writes here first, so
+        // a recurrence leaves evidence on disk instead of a screenshot.
+        function recordDebug(event, data) {
+          try {
+            const current = store.get();
+            const entry = { at: Date.now(), event, focus: focusDescriptor() };
+            if (data) entry.data = data;
+            const log = (Array.isArray(current.debugLog) ? current.debugLog : []).slice(-19);
+            log.push(entry);
+            store.set({ debugLog: log });
+          } catch (error) { /* diagnostics must never break the feature */ }
+        }
 
         // Diagnostics. Run `__skinStudioDiag()` in the renderer console to read
         // the real media state (muted / paused / volume / readyState / sidecar)
@@ -4723,6 +4796,9 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           const audioRef = useRef(null);
           const [failed, setFailed] = useState(false);
           const [sidecarBroken, setSidecarBroken] = useState(false);
+          // True while the element is muted only because autoplay-with-sound was
+          // refused. Cleared by the first gesture, which turns the sound back on.
+          const autoMutedRef = useRef(false);
           // A sidecar only exists for audio codecs Chromium cannot decode. If its
           // URL is unusable (or the element errors out) we must NOT keep the
           // <video> muted — that is the classic "picture plays, no sound" state.
@@ -4769,14 +4845,24 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           useEffect(() => {
             const node = videoRef.current;
             if (!node) return undefined;
+            // Autoplay policy: a muted element always starts, one with sound can
+            // be refused outright. A refusal used to leave a frozen first frame,
+            // which reads as "the video will not play". Fall back to muted
+            // playback so the picture moves, then restore the audio on the first
+            // real gesture (see retry below).
             const start = () => {
               const promise = node.play();
               if (promise && typeof promise.catch === 'function') {
                 promise.catch((error) => {
-                  if (error && error.name !== 'AbortError') {
-                    console.warn('[skin-studio] video play failed', error.name, error.message);
-                    if (error.name === 'NotAllowedError') store.notify('videoAutoplayBlocked');
-                  }
+                  if (!error || error.name === 'AbortError') return;
+                  console.warn('[skin-studio] video play failed', error.name, error.message);
+                  recordDebug('video:play-failed', { name: error.name });
+                  if (error.name !== 'NotAllowedError') return;
+                  autoMutedRef.current = true;
+                  try { node.muted = true; } catch (muteError) { /* ignore */ }
+                  const again = node.play();
+                  if (again && typeof again.catch === 'function') again.catch(() => {});
+                  store.notify('videoAutoplayBlocked');
                 });
               }
             };
@@ -4786,7 +4872,18 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             // "the video has no sound" even though nothing is muted.
             const retry = () => {
               const current = store.get();
-              if (!current.videoPlaying || !node.paused) return;
+              if (!current.videoPlaying) return;
+              // The fallback above muted the element only to satisfy autoplay.
+              // The first gesture is the licence to make sound again.
+              if (autoMutedRef.current && !current.videoMuted) {
+                const live = resolveVideo(current);
+                if (!usableAudioUrl(live && live.audioUrl)) {
+                  autoMutedRef.current = false;
+                  try { node.muted = false; } catch (error) { /* ignore */ }
+                  try { node.volume = current.videoVolume; } catch (error) { /* ignore */ }
+                }
+              }
+              if (!node.paused) return;
               start();
             };
             if (state.videoPlaying) start();
@@ -4917,7 +5014,14 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               tabIndex: -1,
               'data-failed': failed ? 'true' : 'false',
               onError: () => {
+                const node = videoRef.current;
                 console.warn('[skin-studio] video could not be loaded', video.source);
+                recordDebug('video:error', {
+                  src: String(video.source || '').slice(-80),
+                  code: node ? node.error && node.error.code : null,
+                  network: node ? node.networkState : null,
+                  ready: node ? node.readyState : null
+                });
                 setFailed(true);
                 store.notify('videoPlaybackError');
               },
@@ -5240,6 +5344,24 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               h('button', { type: 'button', className: 'dsh-skin-btn', onClick: () => store.set({ modeLock: MODE_PURE }) }, t('mode.enterPure')),
               h('button', { type: 'button', className: 'dsh-skin-btn', onClick: () => store.set({ modeLock: MODE_NONE }) }, t('mode.exit'))
             ),
+            // Opt-in only. Default off so a wallpaper can never decide on its own
+            // that the interface should disappear while the user reads or types.
+            h('div', { className: 'dsh-skin-key-row', key: 'auto-hide' },
+              h('div', { className: 'dsh-skin-key-text' },
+                h('span', { className: 'dsh-skin-option-title' }, t('mode.autoHide')),
+                h('span', { className: 'dsh-skin-option-desc' }, t('mode.autoHide.desc'))
+              ),
+              h('button', {
+                type: 'button',
+                className: 'dsh-skin-btn',
+                'aria-pressed': state.cinemaAutoHide === true ? 'true' : 'false',
+                onClick: () => {
+                  const next = state.cinemaAutoHide !== true;
+                  recordDebug('cinema:toggle', { to: next });
+                  store.set({ cinemaAutoHide: next });
+                }
+              }, state.cinemaAutoHide === true ? t('mode.on') : t('mode.off'))
+            ),
             h('p', { className: 'dsh-skin-hint' }, t('mode.hint'))
           );
         }
@@ -5257,7 +5379,24 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             const root = document.documentElement;
             if (lock === MODE_PURE) root.setAttribute('data-dsh-skin-mode', 'pure');
             else root.removeAttribute('data-dsh-skin-mode');
-            return () => { try { root.removeAttribute('data-dsh-skin-mode'); } catch (error) { /* ignore */ } };
+            // Everything is hidden in pure mode, so a toast inside the React
+            // tree would be invisible too. The exit reminder is appended to
+            // <body> directly (the pure-mode rule whitelists it) and removes
+            // itself, so entering the mode is never a silent black screen.
+            let node = null;
+            let timer = null;
+            if (lock === MODE_PURE && document.body) {
+              node = document.createElement('div');
+              node.className = 'dsh-skin-pure-hint';
+              node.textContent = t('mode.pureHint');
+              document.body.appendChild(node);
+              timer = setTimeout(() => { if (node && node.parentNode) node.parentNode.removeChild(node); node = null; }, 3200);
+            }
+            return () => {
+              if (timer) clearTimeout(timer);
+              if (node && node.parentNode) node.parentNode.removeChild(node);
+              try { root.removeAttribute('data-dsh-skin-mode'); } catch (error) { /* ignore */ }
+            };
           }, [lock]);
 
           useEffect(() => {
@@ -5288,13 +5427,30 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
               // pressing the pure shortcut must not black out the screen the user
               // is reading. Leaving pure mode is still allowed, so this can never
               // trap anyone.
-              if (wanted === MODE_PURE && lock !== MODE_PURE && isTextEntryFocused()) {
+              if (wanted === MODE_PURE && lock !== MODE_PURE && caretInTextField(event)) {
+                recordDebug('pure:blocked-typing', { target: String(event.target && event.target.tagName || '') });
                 store.notify('modeTyping');
                 return;
               }
               if (wanted === MODE_PURE) {
                 if (lock === MODE_NORMAL) { store.notify('modeBlockedNormal'); return; }
-                store.set({ modeLock: lock === MODE_PURE ? MODE_NONE : MODE_PURE });
+                const next = lock === MODE_PURE ? MODE_NONE : MODE_PURE;
+                recordDebug('pure:set', { next });
+                store.set({ modeLock: next });
+                // Focus can be restored a tick after the keystroke (Lexical does
+                // this). Re-check right after the switch and give the screen back
+                // instead of leaving the user staring at an empty wallpaper.
+                if (next === MODE_PURE) {
+                  [0, 160, 600].forEach((delay) => {
+                    setTimeout(() => {
+                      if (store.get().modeLock !== MODE_PURE) return;
+                      if (!isTextEntryFocused()) return;
+                      recordDebug('pure:auto-exit', { delay });
+                      store.set({ modeLock: MODE_NONE });
+                      store.notify('modeTyping');
+                    }, delay);
+                  });
+                }
                 return;
               }
               if (lock === MODE_PURE) { store.notify('modeBlockedPure'); return; }
@@ -5896,13 +6052,18 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           const active = Boolean(video && video.source);
           const wakeRef = React.useRef(null);
           useEffect(() => {
-            if (!active || typeof document === 'undefined' || !document.body) return undefined;
+            if (!active || state.cinemaAutoHide !== true) return undefined;
+            if (typeof document === 'undefined' || !document.body) return undefined;
             let timer = null;
             const wake = () => {
               document.body.classList.remove('dsh-skin-cinema');
               if (timer) clearTimeout(timer);
               timer = setTimeout(() => {
-                if (!document.body) return;
+                // Never fade out the app while the caret is in a text field:
+                // the user is reading what they type and looking at the
+                // conversation above it. That vanishing act is what people
+                // describe as "the interface disappeared by itself".
+                if (!document.body || isTextEntryFocused()) return;
                 document.body.classList.add('dsh-skin-cinema');
               }, 5000);
             };
@@ -5911,14 +6072,21 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
             // Capture on document so movement still wakes the UI when the app
             // root has pointer-events:none and no element is hit-tested.
             events.forEach((name) => document.addEventListener(name, wake, { passive: true, capture: true }));
+            const onFocus = () => {
+              if (!isTextEntryFocused()) return;
+              document.body.classList.remove('dsh-skin-cinema');
+              if (timer) clearTimeout(timer);
+            };
+            document.addEventListener('focusin', onFocus, true);
             wake();
             return () => {
               if (timer) clearTimeout(timer);
               events.forEach((name) => document.removeEventListener(name, wake, { capture: true }));
+              document.removeEventListener('focusin', onFocus, true);
               wakeRef.current = null;
               document.body.classList.remove('dsh-skin-cinema');
             };
-          }, [active]);
+          }, [active, state.cinemaAutoHide]);
           return null;
         }
 

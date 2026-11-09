@@ -28,7 +28,7 @@ function expect(name, condition, detail) {
 //    leave a black screen with no way to tell playback is running.
 expect(
   'pure mode keeps the video layer',
-  /html\[data-dsh-skin-mode="pure"\] body > :not\(\.dsh-skin-video-layer\)\{display:none !important;\}/.test(source),
+  /html\[data-dsh-skin-mode="pure"\] body > :not\(\.dsh-skin-video-layer\)[^{]*\{display:none !important;\}/.test(source),
   'the body-child rule must exclude .dsh-skin-video-layer'
 )
 
@@ -92,8 +92,37 @@ expect(
 expect(
   'typing blocks entry into pure mode',
   /function isTextEntryFocused\(\)/.test(source) &&
-    /wanted === MODE_PURE && lock !== MODE_PURE && isTextEntryFocused\(\)/.test(source),
+    /caretInTextField\(event\)/.test(source) && /pure:auto-exit/.test(source),
   'the shortcut can black out the screen while the caret is in the input box'
+)
+
+// 6b. The interface must never fade out on its own. The old behaviour hid the
+//     whole app five seconds after the last input, which is indistinguishable
+//     from the pure-mode bug and fires exactly while someone is typing.
+expect(
+  'cinema auto-hide is opt-in and off by default',
+  /function CinemaMode[\s\S]{0,400}state\.cinemaAutoHide !== true\) return undefined;/.test(source) &&
+    /cinemaAutoHide: state\.cinemaAutoHide === true,/.test(source) &&
+    /cinemaAutoHide: state\.cinemaAutoHide === true,[\s\S]{0,120}/.test(source) &&
+    /if \(!document\.body \|\| isTextEntryFocused\(\)\) return;/.test(source),
+  'the app can still hide itself after an idle timer'
+)
+
+// 6c. A refused autoplay must fall back to muted playback, not leave a frozen
+//     first frame; the first gesture is what restores the sound.
+expect(
+  'refused autoplay falls back to muted playback',
+  /error\.name !== 'NotAllowedError'\) return;/.test(source) &&
+    /autoMutedRef\.current = true/.test(source) &&
+    /autoMutedRef\.current && !current\.videoMuted/.test(source),
+  'a blocked autoplay leaves the video paused with no fallback'
+)
+
+// 6d. Pure mode hides every control, so entering it must announce the exit.
+expect(
+  'pure mode announces its exit affordance',
+  /dsh-skin-pure-hint/.test(source) && /mode\.pureHint/.test(source),
+  'entering pure mode gives no visible way back'
 )
 
 // 7. The lock has to survive a reload, otherwise "locked" is a lie.
