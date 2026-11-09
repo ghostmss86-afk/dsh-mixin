@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.12 — 2026-11-09
+
+- **播放不了的第二个根因**：桌面端页面跑在 `dsh-app://app`，自定义 scheme 能转发小文件，但**大视频的 Range 请求过不去**，`<video>` 直接 `NotSupportedError`。所以即便 `src` 修对了，仍然只有一帧画面。
+- 宿主新增**只监听 127.0.0.1 的媒体服务**：随机端口 + 每次启动随机 24 位路径令牌，用同一套 `handleVideo` / `handleAudio` 流式实现（不复制逻辑，只加一层 web `Response` → node `ServerResponse` 的适配）。实测：全量 200、`bytes=100-199` → 206 且 `content-range` 正确、错令牌 403。
+- 客户端启动时请求一次 `/api/skin-studio/media/ping` 拿到 `mediaServer` 基址写进 `window.__skinMediaOrigin`，然后 `store.touch()` 触发重渲染——否则首帧仍是相对地址，元素永远起不来。
+- `mediaPath()` 收窄：只有 `video` / `audio/` / `proxy-file` 三种资产 URL 才改写绝对地址，`prepare`/`proxy`/`relink`/`pick*`/`report` 这些 API 一律留在应用源，避免被带到只服务媒体的端口上。
+- 右下角只留播放时出现的聚合体：`时间 / 总时长` + 小鲸鱼；暂停 3 秒后整体淡出，不播放时那一行是干净的。
+- 新增 `scripts/check-media.mjs` 并接进 `npm run check`：断言 src 必须能从路径推导、禁止 `file://`、媒体地址改写只限资产、宿主必须有回环媒体服务、客户端必须 `touch`、聚合体必须随播放状态显隐。
+
 ## 1.0.11 — 2026-11-09
 
 - 进度条彻底删除：不再有任何轨道、滑块、半透明底。整块「看得见的进度条」从界面上消失。

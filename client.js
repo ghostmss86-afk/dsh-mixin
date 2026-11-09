@@ -16,6 +16,10 @@ window.__ModuleLoader__.load({
       if (typeof window === 'undefined') return '';
       return typeof window.__skinMediaOrigin === 'string' ? window.__skinMediaOrigin : '';
     }
+    // Only playback URLs (video / audio sidecar / proxy-file) may leave the app
+    // origin. API calls must stay relative: the loopback server serves media
+    // and nothing else.
+    const MEDIA_ASSET = /\/api\/skin-studio\/media\/(video|audio\/|proxy-file)/;
     function mediaPath(path) {
       let value = String(path || '');
       if (!value) return value;
@@ -24,6 +28,7 @@ window.__ModuleLoader__.load({
       const stale = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(\/.*)$/i.exec(value);
       if (stale) value = stale[1];
       if (!value.startsWith('/')) return value;
+      if (!MEDIA_ASSET.test(value)) return value;
       return mediaBase() + value;
     }
     // Only same-origin media routes can feed the sidecar <audio> element. Older
@@ -160,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.11';
+  const PLUGIN_VERSION = '1.0.12';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T22:41';
+  const BUILD = '2026-11-09T23:06';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2134,12 +2139,11 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-whale:hover{opacity:1;}
 .dsh-skin-whale[data-dragging="true"]{cursor:grabbing;transform:scale(1.2);opacity:1;}
 .dsh-skin-whale svg{display:block;filter:drop-shadow(0 0 6px rgba(77,107,254,.5));}
-.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:5px;z-index:40;}
+.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:5px;z-index:40;display:flex;align-items:center;gap:5px;transition:opacity .2s ease;}
+.dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
 .dsh-skin-whale-wrap .dsh-skin-whale{position:static;}
+.dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.66);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 .dsh-skin-whale-wrap .dsh-skin-player-hud{position:absolute;right:0;bottom:26px;white-space:nowrap;}
-.dsh-skin-clock{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border:none;border-radius:999px;background:rgba(255,255,255,.10);color:rgba(255,255,255,.92);font:inherit;font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:.02em;cursor:pointer;white-space:nowrap;}
-.dsh-skin-clock:hover{background:rgba(255,255,255,.2);}
-.dsh-skin-clock-time{font-variant-numeric:tabular-nums;}
 /* The vault chip moved into settings; its slot in the dock is the clock now. */
 body.dsh-skin-video-active .bv-chip{display:none !important;}
 .dsh-skin-player-row{position:relative;display:flex;align-items:center;gap:10px;min-width:0;}
@@ -2224,12 +2228,25 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         const t = ctx.locale.bind('skin-studio');
 
         const store = createStore(loadState());
-        // Media stays SAME-ORIGIN: under the desktop shell the page is served
-        // from dsh-app://app, and that path is forwarded to the host with the
-        // session cookie attached. Rewriting it to http://127.0.0.1:PORT would
-        // strip that cookie and turn playback into a 401 — the cure would be
-        // worse than the disease. Only stale absolute URLs are normalised back
-        // to a path (see mediaPath).
+        // Large video cannot be served over the dsh-app:// shell (Range gets
+        // dropped and the element reports NotSupportedError). The host runs a
+        // token-scoped loopback HTTP server for exactly this; ask it once and
+        // let mediaPath() prefix every media URL. Until the ping lands, paths
+        // stay relative and same-origin — never a stale hard-coded port.
+        try {
+          fetch('/api/skin-studio/media/ping', { headers: { accept: 'application/json' } })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) => {
+              if (!data || !data.mediaServer) return;
+              window.__skinMediaOrigin = String(data.mediaServer);
+              recordDebug('media:origin', { origin: String(data.mediaServer) });
+              // Re-render subscribers so every <video>/<audio> src is rebuilt
+              // against the loopback origin. Without this the first paint keeps
+              // the relative URL and the element never recovers.
+              store.touch();
+            })
+            .catch(() => { /* relative paths keep working */ });
+        } catch (error) { /* fetch unavailable in tests */ }
         const fullUrlCache = new Map();
         const videoUrlCache = new Map();
         // In-memory FileSystemFileHandle cache (id -> handle). Handles let a
@@ -2968,7 +2985,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const task = (async () => {
             if (!item.sourcePath) return '';
             try {
-              const endpoint = mediaPath('/api/skin-studio/media/prepare?path=' + encodeURIComponent(item.sourcePath));
+              const endpoint = '/api/skin-studio/media/prepare?path=' + encodeURIComponent(item.sourcePath);
               const response = await fetch(endpoint, { method: 'GET', cache: 'no-store' });
               if (!response.ok) throw new Error('HTTP ' + response.status);
               const data = await response.json();
@@ -3003,7 +3020,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           if (proxyPrepareCache.has(item.id)) return proxyPrepareCache.get(item.id);
           const task = (async () => {
             const poll = async () => {
-              const response = await fetch(mediaPath('/api/skin-studio/media/proxy?path=' + encodeURIComponent(item.sourcePath)), { cache: 'no-store' });
+              const response = await fetch('/api/skin-studio/media/proxy?path=' + encodeURIComponent(item.sourcePath), { cache: 'no-store' });
               if (!response.ok) throw new Error('HTTP ' + response.status);
               const data = await response.json();
               if (data && data.ready && data.needed && data.url) {
@@ -3226,8 +3243,8 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         async function lookupVideoPath(fileName, size) {
           if (disposed || !fileName) return null;
           try {
-            const endpoint = mediaPath('/api/skin-studio/media/relink?name=' + encodeURIComponent(fileName) +
-              '&size=' + encodeURIComponent(String(Number(size) || 0)));
+            const endpoint = '/api/skin-studio/media/relink?name=' + encodeURIComponent(fileName) +
+              '&size=' + encodeURIComponent(String(Number(size) || 0));
             const response = await fetch(endpoint, { cache: 'no-store' });
             if (!response.ok) return null;
             const data = await response.json();
@@ -3258,8 +3275,8 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         async function recoverVideoPath(item, options) {
           if (disposed || !item || !item.id || item.sourcePath || !item.name) return false;
           try {
-            const endpoint = mediaPath('/api/skin-studio/media/relink?name=' + encodeURIComponent(item.name) +
-              '&size=' + encodeURIComponent(String(item.size || 0)));
+            const endpoint = '/api/skin-studio/media/relink?name=' + encodeURIComponent(item.name) +
+              '&size=' + encodeURIComponent(String(item.size || 0));
             const response = await fetch(endpoint, { cache: 'no-store' });
             if (!response.ok) return false;
             const data = await response.json();
@@ -3278,7 +3295,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           if (item.sourcePath) return;
           let info = null;
           try {
-            const response = await fetch(mediaPath('/api/skin-studio/media/pick'), { cache: 'no-store' });
+            const response = await fetch('/api/skin-studio/media/pick', { cache: 'no-store' });
             if (response.ok) {
               const data = await response.json();
               if (data && data.canceled) return;
@@ -3301,7 +3318,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           // without the host's native folder dialog).
           if (disposed) return 'unavailable';
           try {
-            const response = await fetch(mediaPath('/api/skin-studio/media/pick-folder'), { cache: 'no-store' });
+            const response = await fetch('/api/skin-studio/media/pick-folder', { cache: 'no-store' });
             if (!response.ok) return 'unavailable';
             const data = await response.json();
             if (data && data.canceled) return 'canceled';
@@ -3573,7 +3590,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             // <input type=file> hides them, so this is the preferred path.
             let hostPickerMissing = false;
             try {
-              const response = await fetch(mediaPath('/api/skin-studio/media/pick-many'), { method: 'GET', cache: 'no-store' });
+              const response = await fetch('/api/skin-studio/media/pick-many', { method: 'GET', cache: 'no-store' });
               if (response.status === 404) {
                 // Older host without the multi-select route: skip the
                 // single-file /pick and fall through to the native <input>,
@@ -3595,7 +3612,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             }
             if (!hostPickerMissing) {
               try {
-                const response = await fetch(mediaPath('/api/skin-studio/media/pick'), { method: 'GET', cache: 'no-store' });
+                const response = await fetch('/api/skin-studio/media/pick', { method: 'GET', cache: 'no-store' });
                 if (response.ok) {
                   const data = await response.json();
                   if (data && data.ok && data.path) {
@@ -3741,7 +3758,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         const reportDiagnostics = () => {
           try {
             const body = JSON.stringify(skinStudioDiag());
-            fetch(mediaPath('/api/skin-studio/media/report'), {
+            fetch('/api/skin-studio/media/report', {
               method: 'POST', cache: 'no-store',
               headers: { 'content-type': 'application/json' },
               body
@@ -5784,6 +5801,17 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const [duration, setDuration] = useState(0);
           const [dragging, setDragging] = useState(false);
           const [visible, setVisible] = useState(true);
+          // The whole bottom-right cluster (clock + whale) only exists while a
+          // wallpaper is actually playing; pausing leaves it up for 3s so the
+          // user can click it again, then it disappears and the row is clean.
+          const playing = Boolean(state.videoPlaying);
+          const [holdClock, setHoldClock] = useState(false);
+          useEffect(() => {
+            if (playing) { setHoldClock(true); return undefined; }
+            const timer = setTimeout(() => setHoldClock(false), 3000);
+            return () => clearTimeout(timer);
+          }, [playing]);
+          const showChip = active && (playing || holdClock);
           const [hud, setHud] = useState('');
           const draggingRef = useRef(false);
           const hoverRef = useRef(false);
@@ -6109,9 +6137,14 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           );
           // Always the same tree: swapping structures on the first pointermove
           // would unmount the button and drop the pointer capture mid-drag.
-          const bar = h('div', { className: 'dsh-skin-whale-wrap', 'data-scheme': scheme },
-            hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null,
-            whale
+          const bar = h('div', {
+            className: 'dsh-skin-whale-wrap',
+            'data-scheme': scheme,
+            'data-visible': showChip ? 'true' : 'false'
+          },
+            h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
+            whale,
+            hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null
           );
           if (createPortal && typeof document !== 'undefined' && document.body) {
             return createPortal(bar, document.body);
@@ -6175,43 +6208,6 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         // The clock replaces the floating player bar: it sits in the composer
         // dock, where the vault chip used to be, and reads the live <video>
         // element directly so it needs no shared state with the seek strip.
-        function TimeChip() {
-          useStore(store);
-          useLocale();
-          const video = resolveVideo(store.get());
-          const active = Boolean(video && video.source);
-          const [clock, setClock] = useState({ time: 0, duration: 0 });
-          useEffect(() => {
-            if (!active) return undefined;
-            if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return undefined;
-            let raf = 0;
-            let last = 0;
-            const read = (now) => {
-              raf = window.requestAnimationFrame(read);
-              if (now - last < 250) return;
-              last = now;
-              const node = typeof document !== 'undefined' && typeof document.querySelector === 'function' ? document.querySelector('video.dsh-skin-video') : null;
-              if (!node) return;
-              const time = Number(node.currentTime) || 0;
-              const duration = Number(node.duration) || 0;
-              setClock((prev) => (Math.abs(prev.time - time) < 0.25 && Math.abs(prev.duration - duration) < 0.5 ? prev : { time, duration }));
-            };
-            raf = window.requestAnimationFrame(read);
-            return () => { try { window.cancelAnimationFrame(raf); } catch (error) { /* ignore */ } };
-          }, [active]);
-          if (!active) return null;
-          const playing = Boolean(store.get().videoPlaying);
-          return h('button', {
-            type: 'button',
-            className: 'dsh-skin-clock',
-            title: t('video.clockHint'),
-            onClick: () => { store.set({ videoPlaying: !store.get().videoPlaying }); recordDebug('clock:toggle'); }
-          },
-            h(playing ? IconPause : IconPlay, { size: 12 }),
-            h('span', { className: 'dsh-skin-clock-time' }, fmtClock(clock.time) + ' / ' + fmtClock(clock.duration))
-          );
-        }
-
         // Hardware playback keys. The media bar used to be the only way to
         // pause; on a laptop F7/F8/F9 are easier to reach than a floating
         // control row, and they never cover the picture.
@@ -6322,14 +6318,6 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           order: 5,
           label: () => t('quick.label')
         }, guarded(QuickAction)));
-
-        // The clock lives in the composer dock: that is the one row the user is
-        // already looking at while a wallpaper plays, and it costs no画面。
-        ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-          name: 'conversation.composer.dock',
-          id: 'skin-studio-clock',
-          order: 19
-        }, guarded(TimeChip)));
 
         ctx.slots.inject('shell.overlay', () => ctx.slots.register({
           name: 'shell.overlay',

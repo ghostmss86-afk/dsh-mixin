@@ -11,7 +11,8 @@
  */
 import { basename, join } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
+import { createServer } from 'node:http';
 import { createReadStream } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
@@ -376,6 +377,82 @@ async function handleAudio(request, url) {
   return new Response(Readable.toWeb(createReadStream(file)), { status: 200, headers });
 }
 
+
+/**
+ * The DSH web route is behind the desktop session cookie, and the renderer runs
+ * from `dsh-app://app`, where a large video over the custom scheme is not
+ * playable (Range requests get dropped). So the plugin also serves the exact
+ * same handlers from a loopback HTTP server with a per-process path token.
+ *
+ * Same implementation, two mounts: nothing about streaming is duplicated here,
+ * only the adaptor from a web `Response` to a node `ServerResponse`.
+ */
+function requestShim(request) {
+  const headers = request.headers || {};
+  return {
+    method: request.method,
+    url: request.url,
+    headers: { get: (name) => headers[String(name).toLowerCase()] }
+  };
+}
+
+async function pipeHandler(request, response, handler, url) {
+  const result = await handler(requestShim(request), url);
+  const headers = {};
+  if (result.headers && typeof result.headers.forEach === 'function') {
+    result.headers.forEach((value, key) => { headers[key] = value; });
+  }
+  response.writeHead(result.status || 200, headers);
+  if (!result.body) { response.end(); return; }
+  Readable.fromWeb(result.body).pipe(response);
+}
+
+function startMediaServer() {
+  const token = randomBytes(12).toString('hex');
+  const prefix = `/${token}`;
+  const server = createServer((request, response) => {
+    const fail = (status) => { try { response.writeHead(status); response.end(); } catch (error) { /* ignore */ } };
+    try {
+      const url = new URL(request.url || '/', 'http://127.0.0.1');
+      if (!url.pathname.startsWith(prefix)) return fail(403);
+      const route = url.pathname.slice(prefix.length);
+      const inner = new URL(url.href);
+      inner.pathname = route;
+      if (route === `${ROUTE_PREFIX}/video`) {
+        pipeHandler(request, response, handleVideo, inner).catch(() => fail(500));
+        return undefined;
+      }
+      if (route.startsWith(`${ROUTE_PREFIX}/audio/`)) {
+        pipeHandler(request, response, handleAudio, inner).catch(() => fail(500));
+        return undefined;
+      }
+      if (route === `${ROUTE_PREFIX}/proxy-file`) {
+        const file = inner.searchParams.get('path') || '';
+        if (!file.startsWith(PROXY_DIR)) return fail(403);
+        pipeHandler(request, response, (req, target) => handleFile(req, target.searchParams.get('path'), 'video/mp4'), inner)
+          .catch(() => fail(500));
+        return undefined;
+      }
+      return fail(404);
+    } catch (error) {
+      return fail(500);
+    }
+  });
+  server.on('error', (error) => console.warn('[skin-studio] media server error', error && error.message));
+  server.listen(0, '127.0.0.1');
+  const port = () => {
+    try { return server.address().port; } catch (error) { return 0; }
+  };
+  return {
+    base: () => (port() ? `http://127.0.0.1:${port()}${prefix}` : ''),
+    close: () => { try { server.close(); } catch (error) { /* ignore */ } }
+  };
+}
+
+// Exposed for the integration test: the media server is the one part that
+// cannot be checked by inspecting source.
+export const __internals = { startMediaServer, handleVideo, CACHE_DIR, ROUTE_PREFIX };
+
 export function apply(ctx) {
   let webServer;
   try {
@@ -387,6 +464,9 @@ export function apply(ctx) {
     console.warn('[skin-studio] webServer service unavailable; video audio helper disabled');
     return;
   }
+
+  const mediaServer = startMediaServer();
+  if (typeof ctx.effect === 'function') ctx.effect(() => () => mediaServer.close());
 
   const resource = async (request) => {
     try {
@@ -428,7 +508,13 @@ export function apply(ctx) {
         // real HTTP origin lets the client build absolute src values instead
         // of guessing (and losing playback to NotSupportedError).
         const origin = typeof webServer.getOrigin === 'function' ? webServer.getOrigin() : '';
-        return json({ ok: true, service: 'skin-studio-media', origin: origin || '', media: ROUTE_PREFIX });
+        return json({
+          ok: true,
+          service: 'skin-studio-media',
+          origin: origin || '',
+          media: ROUTE_PREFIX,
+          mediaServer: mediaServer.base()
+        });
       }
       if (url.pathname === `${ROUTE_PREFIX}/prepare`) {
         let payload = null;
