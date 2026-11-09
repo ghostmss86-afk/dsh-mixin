@@ -2,7 +2,7 @@
 
 [![check](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml/badge.svg)](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.0.5-informational.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.0.6-informational.svg)](CHANGELOG.md)
 [![platform](https://img.shields.io/badge/platform-DSH%200.2.2--rc.1-lightgrey.svg)](#兼容性)
 
 皮肤与壁纸是 DeepSeek Harness 的界面插件。它给界面换一套配色，并给聊天区铺上渐变、图片或视频壁纸；改动立即生效，选择保存在当前浏览器里。
@@ -21,6 +21,7 @@
 | 视频批量导入 | 一次多选、整目录导入、文件与文件夹拖拽；导入即落真实路径 | 设置页与左下角快捷面板同能力 |
 | 全屏播放 | 双击页面顶部空白条或播放器控制条进入全屏，再双击 / Esc 退出 | 触摸屏双击同样有效 |
 | 播放自检 | 设置页直接写出「原文件 / 音轨 / 画面静音 / 声音来源」，一键复制 | 无需打开控制台 |
+| 显示模式 | 自录两个快捷键：一个进纯净模式（隐藏整个界面，只留壁纸），一个回正常界面；各自一键锁定、再按解除 | 快捷键需含 Ctrl / ⌘ / Alt |
 | 收藏与筛选 | 「全部 / 收藏 / 我的照片 / 渐变」四个筛选，点星标收藏 | — |
 | 柔化壁纸 | 在壁纸上叠一层柔光，保证文字可读 | 0–50%，默认 12% |
 | 半透明面板 | 让聊天卡片与侧栏透出壁纸 | 开关 |
@@ -89,6 +90,7 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 - 视频导入一律落真实文件路径：拖拽 / 普通文件框也会用「文件名 + 字节数」自动找回磁盘路径，避免退化成无声的 blob 记录
 - 视频全屏：双击页面顶部空白条（或播放器控制条）进入全屏，再双击 / Esc 退出；播放时输入框区域保持透明，不糊字幕
 - 视频没有声音时：设置页的「自检」行会直接写出原因（原文件 / 音轨 / 画面静音 / 声音来源）；卡片左下角的链接按钮可以手动重新关联原文件，插件启动时也会按「文件名 + 字节数」自动找回
+- 显示模式：设置里的「显示模式」段，点一下录制框再按组合键，分别给「纯净模式」和「正常模式」各录一个。第一次按锁定该模式，再按一次解除；某一个锁定期间，另一个快捷键不生效（面板里会写出当前状态）。纯净模式连按两次 `Esc` 可应急退出
 - 选项：「柔化壁纸」滑块与「半透明面板」开关
 
 ## 数据与联网
@@ -126,10 +128,12 @@ skin-studio/
 ├── docs/
 │   ├── preview.webp      # 界面截图
 │   ├── market-entry.yml  # 插件市场的收录条目
-│   └── video-playback.md # 视频声音/进度条的不变量与回归清单
+│   ├── video-playback.md # 视频声音/进度条的不变量与回归清单
+│   └── display-modes.md  # 显示模式的状态机与接线说明
 ├── scripts/
 │   ├── guard.mjs         # 媒体不变量静态检查
-│   └── guard.rules.json  # 规则即数据
+│   ├── guard.rules.json  # 规则即数据
+│   └── check-modes.mjs   # 显示模式的接线检查
 ├── icon.svg
 ├── package.json
 ├── CHANGELOG.md
@@ -153,13 +157,16 @@ skin-studio/
 ## 开发
 
 ```bash
-npm run check     # node --check index.js client.js
+npm run check     # 语法检查 + 显示模式接线检查
 npm run guard     # 媒体不变量静态检查（CI 与 pre-push 同款）
 ```
 
 `scripts/guard.mjs` 与规则来自 [engineering-lessons](https://github.com/ghostmss86-afk/engineering-lessons)，
 拦的是这个插件历史上真实踩过的坑（`file://` 音源、丢路径的 Blob 导入、`public.movie` 过滤等）。
 `docs/video-playback.md` 是这些坑的完整说明与回归清单。
+
+`scripts/check-modes.mjs` 拦的是另一类事故：功能、文案、样式都写了，但组件没被 mount、
+或者隐藏规则把壁纸层一起藏掉。纯文本检查，无依赖，`npm run check` 与 CI 都会跑。
 
 ## 反馈
 

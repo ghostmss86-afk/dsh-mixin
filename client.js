@@ -27,15 +27,75 @@ window.__ModuleLoader__.load({
       if (/^file:/i.test(url)) return '';
       return url;
     }
+
+    // ---------- display-mode shortcuts ----------
+    // Two user-mapped hotkeys: one locks the pure view (no interface on top of
+    // the wallpaper), the other locks the normal view. Each key locks *its
+    // own* mode and unlocks it again on a second press; while one mode is
+    // locked the other key is inert, so a stray press cannot flip the screen
+    // without the user asking for exactly that.
+    const MODE_NONE = 'none';
+    const MODE_PURE = 'pure';
+    const MODE_NORMAL = 'normal';
+    const MODE_KEY_MAX = 40;
+
+    function normalizeModeKey(value) {
+      const key = typeof value === 'string' ? value.trim() : '';
+      return key.length > 2 && key.length <= MODE_KEY_MAX ? key : '';
+    }
+
+    function eventKeyName(event) {
+      const key = String(event && event.key ? event.key : '');
+      if (!key || key === 'Unidentified' || key === 'Dead' || key === 'Process') return '';
+      if (key === ' ' || key === 'Spacebar') return 'Space';
+      return key.length === 1 ? key.toUpperCase() : key;
+    }
+
+    // Returns '' for anything we must not claim: a bare letter (it would eat
+    // ordinary typing), a lone modifier, or an unidentified key.
+    function comboFromEvent(event) {
+      const key = eventKeyName(event);
+      if (!key) return '';
+      if (key === 'Control' || key === 'Meta' || key === 'Alt' || key === 'Shift') return '';
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) return '';
+      const parts = [];
+      if (event.ctrlKey) parts.push('Ctrl');
+      if (event.metaKey) parts.push('Meta');
+      if (event.altKey) parts.push('Alt');
+      if (event.shiftKey) parts.push('Shift');
+      parts.push(key);
+      return parts.join('+');
+    }
+
+    function isMacLike() {
+      if (typeof navigator === 'undefined') return false;
+      const platform = String(navigator.platform || navigator.userAgent || '');
+      return /Mac|iPhone|iPad/i.test(platform);
+    }
+
+    function comboLabel(combo) {
+      const value = String(combo || '');
+      if (!value) return '';
+      const mac = isMacLike();
+      const parts = value.split('+');
+      if (!mac) return parts.map((part) => (part === 'Meta' ? 'Win' : part)).join('+');
+      return parts.map((part) => {
+        if (part === 'Meta') return '\u2318';
+        if (part === 'Ctrl') return '\u2303';
+        if (part === 'Alt') return '\u2325';
+        if (part === 'Shift') return '\u21e7';
+        return part;
+      }).join('');
+    }
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.5';
+  const PLUGIN_VERSION = '1.0.6';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T19:26';
+  const BUILD = '2026-11-09T20:30';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -480,6 +540,14 @@ window.__ModuleLoader__.load({
         videoVolume: Number.isFinite(Number(state.videoVolume)) ? clamp(Number(state.videoVolume), 0, 1) : 0.45,
         videoLoop: state.videoLoop !== false,
         videoAudioVersion: 2,
+        // 'none' shows the app, 'pure' hides every surface but the wallpaper,
+        // 'normal' is the same picture as 'none' but holds the lock. The lock
+        // survives a reload on purpose: that is what "locked" means.
+        modeLock: state.modeLock === MODE_PURE || state.modeLock === MODE_NORMAL ? state.modeLock : MODE_NONE,
+        modeKeys: {
+          pure: normalizeModeKey(state.modeKeys && state.modeKeys.pure),
+          normal: normalizeModeKey(state.modeKeys && state.modeKeys.normal)
+        },
         notice: typeof state.notice === 'string' ? state.notice : null,
         importing: state.importing && typeof state.importing === 'object' ? state.importing : null,
         videoImporting: state.videoImporting && typeof state.videoImporting === 'object' ? state.videoImporting : null,
@@ -531,6 +599,11 @@ window.__ModuleLoader__.load({
         videoVolume: state.videoVolume,
         videoLoop: state.videoLoop,
         videoAudioVersion: 2,
+        modeLock: state.modeLock || MODE_NONE,
+        modeKeys: {
+          pure: normalizeModeKey(state.modeKeys && state.modeKeys.pure),
+          normal: normalizeModeKey(state.modeKeys && state.modeKeys.normal)
+        },
         customVideos: state.customVideos.map((item) => ({
           id: item.id,
           name: item.name,
@@ -1257,6 +1330,27 @@ window.__ModuleLoader__.load({
       'quick.hint': 'More options: Settings → Skins & wallpapers.',
       'quick.wallpaper': 'Wallpaper',
       'quick.skin': 'Skin',
+      'section.modes': 'Display mode',
+      'section.modes.desc': 'Hide the whole interface and leave only the wallpaper. Map two shortcuts; each one locks and unlocks its own mode.',
+      'mode.pure': 'Pure mode',
+      'mode.pure.desc': 'No interface at all — wallpaper and video only.',
+      'mode.normal': 'Normal mode',
+      'mode.normal.desc': 'Keep the full DeepSeek Harness interface on top of the wallpaper.',
+      'mode.unset': 'Click, then press a combination',
+      'mode.recording': 'Press a combination…',
+      'mode.needModifier': 'Add Ctrl, ⌘ or Alt — a bare key would break typing.',
+      'mode.conflict': 'That combination already belongs to the other mode.',
+      'mode.clear': 'Clear shortcut',
+      'mode.hint': 'First press locks the mode, the second press unlocks it. While one mode is locked the other shortcut is ignored. In pure mode, Esc twice is the emergency exit.',
+      'mode.now': 'Now:',
+      'mode.state.pure': 'pure (locked)',
+      'mode.state.normal': 'normal (locked)',
+      'mode.state.none': 'normal',
+      'mode.enterPure': 'Enter pure mode',
+      'mode.exit': 'Back to normal',
+      'notice.modeExit': 'Left pure mode.',
+      'notice.modeBlockedPure': 'Pure mode is locked — press its own shortcut to leave it.',
+      'notice.modeBlockedNormal': 'Normal mode is locked — press its own shortcut to release it.',
       'reset': 'Reset to default',
       'reset.confirm': 'Reset the skin, wallpaper, and options to their defaults? Your custom items are kept.',
       'notice.storage': 'Browser storage is full; the change applies to this session only.',
@@ -1405,6 +1499,27 @@ window.__ModuleLoader__.load({
       'quick.hint': '更多选项：设置 → 皮肤与壁纸。',
       'quick.wallpaper': '壁纸',
       'quick.skin': '皮肤',
+      'section.modes': '显示模式',
+      'section.modes.desc': '把界面整体隐藏，只留壁纸。映射两个快捷键，各自锁定、各自解除。',
+      'mode.pure': '纯净模式',
+      'mode.pure.desc': '不显示任何界面，只剩壁纸与视频。',
+      'mode.normal': '正常模式',
+      'mode.normal.desc': '在壁纸之上显示完整的 DeepSeek Harness 界面。',
+      'mode.unset': '点击后按下组合键',
+      'mode.recording': '请按下组合键…',
+      'mode.needModifier': '至少要有 Ctrl / ⌘ / Alt 之一，否则会抢走正常打字。',
+      'mode.conflict': '这个组合已经被另一种模式占用。',
+      'mode.clear': '清除快捷键',
+      'mode.hint': '第一次按锁定该模式，再按一次解除锁定。锁定期间另一个快捷键不生效。在纯净模式下，连按两次 Esc 是应急出口。',
+      'mode.now': '当前：',
+      'mode.state.pure': '纯净（已锁定）',
+      'mode.state.normal': '正常（已锁定）',
+      'mode.state.none': '正常',
+      'mode.enterPure': '进入纯净模式',
+      'mode.exit': '回到正常界面',
+      'notice.modeExit': '已退出纯净模式。',
+      'notice.modeBlockedPure': '纯净模式已锁定，请用它自己的快捷键解除。',
+      'notice.modeBlockedNormal': '正常模式已锁定，请用它自己的快捷键解除。',
       'reset': '恢复默认',
       'reset.confirm': '要把皮肤、壁纸和选项恢复默认吗？自定义内容会保留。',
       'notice.storage': '浏览器存储空间已满，刚才的改动只在本次会话生效。',
@@ -1777,6 +1892,18 @@ window.__ModuleLoader__.load({
 .dsh-skin-option-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
 .dsh-skin-option-title{font-size:12px;font-weight:500;}
 .dsh-skin-option-desc{font-size:11px;color:var(--dsw-alias-label-secondary);}
+.dsh-skin-keys{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.dsh-skin-key-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-l2);}
+.dsh-skin-key-row.is-recording{border-color:var(--dsw-alias-label-primary);box-shadow:0 0 0 2px rgba(64,128,255,.22);}
+.dsh-skin-key-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;}
+.dsh-skin-key-btn{min-width:150px;justify-content:center;font-variant-numeric:tabular-nums;}
+.dsh-skin-key-clear{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;}
+.dsh-skin-mode-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.dsh-skin-mode-state{font-size:12px;color:var(--dsw-alias-label-secondary);margin:8px 0 0;}
+/* Pure mode: every body child but the portaled wallpaper layer disappears.
+   The <style> tags live inside #root and still apply while #root is hidden. */
+html[data-dsh-skin-mode="pure"] body > :not(.dsh-skin-video-layer){display:none !important;}
+html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hidden !important;}
 .dsh-skin-slider{display:flex;align-items:center;gap:10px;flex:none;}
 .dsh-skin-range{width:168px;accent-color:var(--dsw-alias-brand-primary);}
 .dsh-skin-value{min-width:36px;text-align:right;font-size:12px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;}
@@ -1935,7 +2062,10 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         videoReselect: 'video.reselect',
         videoPartial: 'video.partial',
         videoRelinked: 'video.relinked',
-        videoRelinkFailed: 'video.relinkFailed'
+        videoRelinkFailed: 'video.relinkFailed',
+        modeExit: 'notice.modeExit',
+        modeBlockedPure: 'notice.modeBlockedPure',
+        modeBlockedNormal: 'notice.modeBlockedNormal'
       };
       return t(keys[code] || 'notice.storage');
     }
@@ -1963,6 +2093,9 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
         // Shared handle to the live background <video> so the floating player
         // bar can read/set progress. Set by VideoBackground's ref callback.
         const videoElementRef = { current: null };
+        // Set while the settings recorder is capturing, so the global hotkeys
+        // cannot swallow the very combination the user is trying to map.
+        const modeRecording = { current: false };
         // A ready proxy replaces the <video> src, which rewinds the element to
         // 0:00. Remember where playback was so the swap cannot "jump back".
         let resumeAt = 0;
@@ -4276,6 +4409,8 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
 
             h(VideoSection, { key: 'video' }),
 
+            h(ModeSection, { key: 'modes' }),
+
             h('section', { className: 'dsh-skin-section', key: 'options' },
               h('h2', { className: 'dsh-skin-h2' }, t('section.options')),
               h('div', { className: 'dsh-skin-options' },
@@ -5006,6 +5141,135 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
           );
         }
 
+        function ModeSection() {
+          const state = useStore(store);
+          useLocale();
+          const [recording, setRecording] = useState(null);
+          const [error, setError] = useState(null);
+
+          useEffect(() => {
+            if (!recording) return undefined;
+            modeRecording.current = true;
+            const onKey = (event) => {
+              event.preventDefault();
+              if (typeof event.stopPropagation === 'function') event.stopPropagation();
+              if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+              if (event.key === 'Escape') { setRecording(null); setError(null); return; }
+              const combo = comboFromEvent(event);
+              if (!combo) { setError('mode.needModifier'); return; }
+              const current = store.get();
+              const other = recording === MODE_PURE ? current.modeKeys.normal : current.modeKeys.pure;
+              if (combo && combo === other) { setError('mode.conflict'); return; }
+              setRecording(null);
+              setError(null);
+              store.set({ modeKeys: Object.assign({}, current.modeKeys, { [recording]: combo }) });
+            };
+            window.addEventListener('keydown', onKey, true);
+            return () => {
+              modeRecording.current = false;
+              window.removeEventListener('keydown', onKey, true);
+            };
+          }, [recording]);
+
+          const keys = state.modeKeys;
+          const lock = state.modeLock;
+          const stateKey = lock === MODE_PURE ? 'mode.state.pure' : lock === MODE_NORMAL ? 'mode.state.normal' : 'mode.state.none';
+
+          const row = (kind, labelKey, descKey) => h('div', {
+            className: 'dsh-skin-key-row' + (recording === kind ? ' is-recording' : ''),
+            key: kind
+          },
+            h('div', { className: 'dsh-skin-key-text' },
+              h('span', { className: 'dsh-skin-option-title' }, t(labelKey)),
+              h('span', { className: 'dsh-skin-option-desc' }, t(descKey))
+            ),
+            h('button', {
+              type: 'button',
+              className: 'dsh-skin-btn dsh-skin-key-btn',
+              title: keys[kind] ? t('mode.clear') : t('mode.unset'),
+              onClick: () => { setError(null); setRecording(recording === kind ? null : kind); }
+            }, recording === kind ? t('mode.recording') : (keys[kind] ? comboLabel(keys[kind]) : t('mode.unset'))),
+            keys[kind]
+              ? h('button', {
+                type: 'button', className: 'dsh-skin-key-clear',
+                title: t('mode.clear'), 'aria-label': t('mode.clear'),
+                onClick: () => store.set({ modeKeys: Object.assign({}, keys, { [kind]: '' }) })
+              }, '\u00d7')
+              : null
+          );
+
+          return h('section', { className: 'dsh-skin-section', key: 'modes' },
+            h('h2', { className: 'dsh-skin-h2' }, t('section.modes')),
+            h('p', { className: 'dsh-skin-hint' }, t('section.modes.desc')),
+            h('div', { className: 'dsh-skin-keys' },
+              row(MODE_PURE, 'mode.pure', 'mode.pure.desc'),
+              row(MODE_NORMAL, 'mode.normal', 'mode.normal.desc')
+            ),
+            error ? h('p', { className: 'dsh-skin-hint dsh-skin-hint-warn' }, t(error)) : null,
+            h('p', { className: 'dsh-skin-mode-state' }, t('mode.now') + ' ' + t(stateKey)),
+            h('div', { className: 'dsh-skin-mode-actions' },
+              h('button', { type: 'button', className: 'dsh-skin-btn', onClick: () => store.set({ modeLock: MODE_PURE }) }, t('mode.enterPure')),
+              h('button', { type: 'button', className: 'dsh-skin-btn', onClick: () => store.set({ modeLock: MODE_NONE }) }, t('mode.exit'))
+            ),
+            h('p', { className: 'dsh-skin-hint' }, t('mode.hint'))
+          );
+        }
+
+        // Owns the lock -> DOM attribute and the two global hotkeys. Lives in a
+        // component (not in apply) so it re-binds whenever the mapping changes.
+        function ModeController() {
+          const state = useStore(store);
+          const lock = state.modeLock;
+          const pureKey = state.modeKeys.pure;
+          const normalKey = state.modeKeys.normal;
+
+          useEffect(() => {
+            if (typeof document === 'undefined' || !document.documentElement) return undefined;
+            const root = document.documentElement;
+            if (lock === MODE_PURE) root.setAttribute('data-dsh-skin-mode', 'pure');
+            else root.removeAttribute('data-dsh-skin-mode');
+            return () => { try { root.removeAttribute('data-dsh-skin-mode'); } catch (error) { /* ignore */ } };
+          }, [lock]);
+
+          useEffect(() => {
+            if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
+            let lastEsc = 0;
+            const onKey = (event) => {
+              if (modeRecording.current) return;
+              // Emergency exit: pure mode hides every control, so Esc twice has
+              // to work even when the mapped shortcut does not.
+              if (lock === MODE_PURE && event.key === 'Escape') {
+                const now = Date.now();
+                if (now - lastEsc < 900) {
+                  lastEsc = 0;
+                  store.set({ modeLock: MODE_NONE });
+                  store.notify('modeExit');
+                } else {
+                  lastEsc = now;
+                }
+                return;
+              }
+              const combo = comboFromEvent(event);
+              if (!combo) return;
+              const wanted = pureKey && combo === pureKey ? MODE_PURE : normalKey && combo === normalKey ? MODE_NORMAL : null;
+              if (!wanted) return;
+              event.preventDefault();
+              if (typeof event.stopPropagation === 'function') event.stopPropagation();
+              if (wanted === MODE_PURE) {
+                if (lock === MODE_NORMAL) { store.notify('modeBlockedNormal'); return; }
+                store.set({ modeLock: lock === MODE_PURE ? MODE_NONE : MODE_PURE });
+                return;
+              }
+              if (lock === MODE_PURE) { store.notify('modeBlockedPure'); return; }
+              store.set({ modeLock: lock === MODE_NORMAL ? MODE_NONE : MODE_NORMAL });
+            };
+            window.addEventListener('keydown', onKey, true);
+            return () => window.removeEventListener('keydown', onKey, true);
+          }, [lock, pureKey, normalKey]);
+
+          return null;
+        }
+
         function VideoGrid(props) {
           const state = useStore(store);
           useLocale();
@@ -5640,6 +5904,7 @@ body.dsh-skin-cinema .dsh-skin-player{opacity:0 !important;pointer-events:none !
 
           return h(React.Fragment, null,
             h('style', { key: 'styles' }, STYLE_CSS),
+            h(ModeController, { key: 'mode' }),
             h(CinemaMode, { key: 'cinema' }),
             h(VideoBackground, { key: 'video-bg' }),
             h(VideoPlayerBar, { key: 'video-player' }),
