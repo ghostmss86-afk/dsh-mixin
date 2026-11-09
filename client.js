@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.23';
+  const PLUGIN_VERSION = '1.0.24';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T03:30';
+  const BUILD = '2026-11-10T03:54';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -6409,18 +6409,27 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           // width, so a full left-to-right drag covers the whole runtime — the
           // gesture matches what the picture on screen is doing.
           const WHALE_TRACK_PX = 104;
+          const WHALE_THUMB_PX = 22;
+          // How far the whale itself can travel along the rail. The drag maths
+          // must use this exact number: a wider span made the target race ahead
+          // of the thumb, so dropping at the visible right end overshot the
+          // runtime, clamped onto the last frame and — with loop on — replayed
+          // the whole video from 0:00.
+          const WHALE_SPAN_PX = WHALE_TRACK_PX - WHALE_THUMB_PX;
+          // Never scrub onto the final frame either: seeking to exactly
+          // `duration` fires `ended`/wraps the loop, which reads as "the video
+          // started over" instead of "it stopped where I dropped it".
+          const WHALE_END_GUARD = 0.5;
           const applyWhaleSeek = (seconds) => {
             const node = currentVideoNode();
             if (!node) return;
             const total = Number(node.duration);
             if (!Number.isFinite(total) || total <= 0) return;
-            const value = clamp(seconds, 0, total);
+            const ceiling = total > WHALE_END_GUARD * 2 ? total - WHALE_END_GUARD : total;
+            const value = clamp(seconds, 0, ceiling);
             markSeek(value);
             try { node.currentTime = value; } catch (error) { /* ignore */ }
             setProgress(value / total);
-            setHud(fmt(value) + ' / ' + fmt(total));
-            if (hudTimer.current) clearTimeout(hudTimer.current);
-            hudTimer.current = setTimeout(() => setHud(''), 1200);
           };
 
           const onWhaleDown = (event) => {
@@ -6440,13 +6449,12 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             if (event.currentTarget && event.currentTarget.setPointerCapture && event.pointerId != null) {
               try { event.currentTarget.setPointerCapture(event.pointerId); } catch (error) { /* ignore */ }
             }
-            const span = Math.max(96, WHALE_TRACK_PX - 22);
             const move = (moveEvent) => {
               const drag = whaleDragRef.current;
               if (!drag) return;
               const dx = moveEvent.clientX - drag.x;
               drag.moved = Math.max(drag.moved, Math.abs(dx));
-              if (drag.total) applyWhaleSeek(drag.start + (dx / span) * drag.total);
+              if (drag.total) applyWhaleSeek(drag.start + (dx / WHALE_SPAN_PX) * drag.total);
             };
             const end = () => {
               const drag = whaleDragRef.current;
@@ -6458,8 +6466,20 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                 window.removeEventListener('pointerup', end);
                 window.removeEventListener('pointercancel', end);
               }
+              // Dropped on the last frame: stop there instead of letting the
+              // loop wrap the film back to 0:00, which looks like a restart.
+              const settled = currentVideoNode();
+              if (settled && store.get().videoPlaying) {
+                const settledTotal = Number(settled.duration) || 0;
+                if (settledTotal > 0 && Number(settled.currentTime) >= settledTotal - WHALE_END_GUARD - 0.05) {
+                  store.set({ videoPlaying: false });
+                  recordDebug('whale:hold-end');
+                }
+              }
               // A tap that never moved is a play/pause toggle, not a seek.
-              if (drag && drag.moved < 3) {
+              // 4px of slack (up from 3) so a slightly shaky scrub is not
+              // mistaken for a tap and left paused on the drop frame.
+              if (drag && drag.moved < 4) {
                 store.set({ videoPlaying: !store.get().videoPlaying });
                 recordDebug('whale:toggle');
               }
@@ -6470,6 +6490,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
               window.addEventListener('pointercancel', end);
             }
           };
+
 
           function fmt(seconds) {
             if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
@@ -6487,7 +6508,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           // position is proportional to playback progress, so you can see at a
           // glance how far through the film you are.
           const whalePct = clamp(Number(progress) || 0, 0, 1);
-          const whaleLeft = Math.round(whalePct * (WHALE_TRACK_PX - 22));
+          const whaleLeft = Math.round(whalePct * WHALE_SPAN_PX);
           const whale = h('button', {
             ref: whaleRef,
             type: 'button',
