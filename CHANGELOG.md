@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.10 — 2026-11-09
+
+- 回退 1.0.9 里「把媒体地址改成 `http://127.0.0.1:PORT` 绝对地址」的做法。桌面端页面由 `dsh-app://app` 提供，该 scheme 被转发到宿主时**自动附带会话 cookie**；改成绝对 HTTP 地址就丢了 cookie，播放会变成 401。真正的病根只是空 `src`，不需要动 URL 的宿主。
+- 保留 `mediaPath()` 的归一化：曾经写进 `fullUrl` 的旧端口绝对 URL 会退回纯路径，避免换端口后拿到死链接。
+- `/ping` 仍然返回 `origin` 与 `media` 前缀，作为诊断信息使用，不再影响播放地址。
+
 ## 1.0.9 — 2026-11-09
 
 - **真正修好「视频播放不了」**：`<video>` 的 `src` 之前依赖运行期缓存字段 `fullUrl`，而这个字段不落盘。刷新/重启后记录只剩 `sourcePath`，`src` 是空串，`play()` 直接以 `NotSupportedError` 拒绝——**不触发 `error` 事件**，所以页面上看不到任何错误，只有一张定格的画面。现在 `src` 由 `sourcePath` 同步推导（`videoRoute()`），首帧渲染就有 URL。

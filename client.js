@@ -160,13 +160,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.9';
+  const PLUGIN_VERSION = '1.0.10';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T22:23';
+  const BUILD = '2026-11-09T22:24';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2212,19 +2212,12 @@ body.dsh-skin-cinema .dsh-skin-seekbar{opacity:0 !important;pointer-events:none 
         const t = ctx.locale.bind('skin-studio');
 
         const store = createStore(loadState());
-        // Resolve the HTTP origin of the host before any <video> mounts. The
-        // desktop shell serves the UI from dsh-app://app, and media elements
-        // cannot play that scheme even though fetch() can reach it.
-        const mediaOriginReady = (async () => {
-          try {
-            const probe = await fetch('/api/skin-studio/media/ping', { cache: 'no-store' });
-            if (!probe.ok) return;
-            const info = await probe.json();
-            if (info && typeof info.origin === 'string' && info.origin) {
-              window.__skinMediaOrigin = info.origin;
-            }
-          } catch (error) { /* host older than 1.0.9 — keep relative URLs */ }
-        })();
+        // Media stays SAME-ORIGIN: under the desktop shell the page is served
+        // from dsh-app://app, and that path is forwarded to the host with the
+        // session cookie attached. Rewriting it to http://127.0.0.1:PORT would
+        // strip that cookie and turn playback into a 401 — the cure would be
+        // worse than the disease. Only stale absolute URLs are normalised back
+        // to a path (see mediaPath).
         const fullUrlCache = new Map();
         const videoUrlCache = new Map();
         // In-memory FileSystemFileHandle cache (id -> handle). Handles let a
