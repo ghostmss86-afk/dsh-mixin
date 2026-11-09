@@ -1,91 +1,128 @@
-# 皮肤与壁纸 · Skin Studio
+# 皮肤与壁纸（Skin Studio）
 
-给 DeepSeek Harness 的界面换一套配色，再铺一张聊天壁纸。预设皮肤、自定义配色、图片壁纸、视频壁纸、收藏夹和实时预览都在同一处，改动即时生效，并记住在当前浏览器里。
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![version](https://img.shields.io/badge/version-1.0.1-informational.svg)](CHANGELOG.md)
+[![platform](https://img.shields.io/badge/platform-DSH%200.2.2--rc.1-lightgrey.svg)](#兼容性)
 
-A local-first appearance plugin for DeepSeek Harness: color skins plus image / video chat wallpapers, with live preview and per-browser persistence.
+皮肤与壁纸是 DeepSeek Harness 的界面插件。它给界面换一套配色，并给聊天区铺上渐变、图片或视频壁纸；改动立即生效，选择保存在当前浏览器里。
 
-![settings entry](icon.svg)
+![皮肤与壁纸面板与视频壁纸](docs/preview.webp)
 
 ## 功能
 
-- **预设皮肤**：一组可直接切换的配色方案，浅色 / 深色 / 跟随系统。
-- **自定义皮肤**：最多保存 12 套自己的配色，可命名、可删除。
-- **壁纸**：渐变、上传本地图片、粘贴图片链接三种来源；带分类与收藏星标。
-- **视频壁纸**：本地视频直接铺满聊天背景，自动处理容器里 Chromium 解不了的音轨。
-- **可读性选项**：壁纸柔化、聊天卡片与侧栏半透明强度，避免文字压在花哨背景上。
-- **实时预览**：设置面板里就是当前界面的缩略效果，改一个值立刻看到结果。
-- **一键恢复**：恢复默认只重置皮肤、壁纸和选项，自定义内容仍然保留。
+| 功能 | 说明 | 数量 / 前提 |
+| --- | --- | --- |
+| 预设皮肤 | 直接切换整套配色，同时覆盖浅色与深色 | 8 套 |
+| 自定义皮肤 | 自选强调色与背景，保存后出现在「我的皮肤」 | 最多 12 套 |
+| 渐变壁纸 | 内置渐变背景，随浅色 / 深色主题变化 | 9 套 |
+| 图片壁纸 | 上传本地图片，或粘贴图片链接 | 最多 10000 张 |
+| 视频壁纸 | 本地视频铺满聊天区，可暂停、静音、调音量、循环播放 | 最多 10000 个；非 AAC 音轨需要 ffmpeg |
+| 收藏与筛选 | 「全部 / 收藏 / 我的照片 / 渐变」四个筛选，点星标收藏 | — |
+| 柔化壁纸 | 在壁纸上叠一层柔光，保证文字可读 | 0–50%，默认 12% |
+| 半透明面板 | 让聊天卡片与侧栏透出壁纸 | 开关 |
+| 实时预览 | 设置页显示当前皮肤与壁纸的缩略效果 | — |
+| 恢复默认 | 只重置皮肤、壁纸与选项，自定义内容保留 | — |
 
 ## 安装
 
-本插件以 DSH profile 的本地 link 方式接入，拷到任意路径后：
+前置条件：DeepSeek Harness `0.2.2-rc.1`（本机验证版本）。视频壁纸的音频兜底需要 `ffmpeg` 与 `ffprobe` 在 `PATH` 里；没有时视频无声，画面正常。
 
-1. 在 profile 的 `package.json` 里加依赖：
+### 方式一：profile link（跟随仓库更新）
 
-   ```json
-   {
-     "dependencies": {
-       "@local/skin-studio": "link:/absolute/path/to/skin-studio"
-     },
-     "dsh": {
-       "profile": {
-         "bundles": ["@local/skin-studio"]
-       }
-     }
-   }
-   ```
+```bash
+git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-studio
+```
 
-2. 在 profile 目录执行 `pnpm install`。
-3. 重启 DeepSeek Harness，或刷新 Web GUI；入口在 **设置 → 皮肤与壁纸**，侧栏也有一个快捷入口。
+在该 profile 的 `package.json` 中加入依赖与 bundle：
 
-视频壁纸的音频兜底需要 `ffprobe` / `ffmpeg` 在 `PATH` 里；缺失时插件只跳过音频侧车，画面仍然正常。
+```json
+{
+  "dependencies": {
+    "@local/skin-studio": "link:/Users/you/plugins/skin-studio"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": ["@local/skin-studio"]
+    }
+  }
+}
+```
+
+在该 profile 目录执行 `pnpm install`，然后重启 DeepSeek Harness。
+
+### 方式二：直接放目录
+
+把仓库内容放到 profile 的 `node_modules/@local/skin-studio`，bundle 配置同上。刷新页面即可生效。
+
+> 包名固定为 `@local/skin-studio`，与 profile 的依赖键一一对应；改名后 loader 找不到插件。
 
 ## 使用
 
-- 侧栏「皮肤与壁纸」按钮可快速切换皮肤与壁纸。
-- 设置页里：预设皮肤、我的皮肤、壁纸库、收藏、选项。
-- 壁纸左侧星标收藏；分类为空时会提示。
-- 自定义皮肤上限 12 套，自定义壁纸与视频上限很高（按浏览器存储能力决定）。
+- 入口一：左下角侧栏的「皮肤与壁纸」
+- 入口二：设置 → 皮肤与壁纸
+- 皮肤：点选预设，或在「自定义皮肤」里配色后保存，最多 12 套
+- 壁纸：选渐变、上传图片或粘贴图片链接；点缩略图左侧星标收藏
+- 视频壁纸：添加本地视频，播放器支持暂停、静音、音量与循环
+- 选项：「柔化壁纸」滑块与「半透明面板」开关
 
-## 数据存放
+## 数据与联网
 
 | 内容 | 位置 |
 | --- | --- |
-| 当前选择与选项 | `localStorage` key `dsh.skin-studio.v1` |
-| 自定义皮肤、壁纸、视频 | IndexedDB `dsh-skin-studio`（version 2） |
+| 当前选择与选项 | localStorage `dsh.skin-studio.v1` |
+| 自定义皮肤、图片、视频 | IndexedDB `dsh-skin-studio`（version 2） |
 
-数据只存在当前浏览器 / 当前设备，不上传、不联网。
+插件不上传数据，也没有远程接口。只有两种操作会用到网络：
 
-## 实现
+- 壁纸填的是图片链接时，浏览器按该链接加载图片
+- 视频壁纸通过本机路由 `/api/skin-studio/media` 读取本地文件并流式返回，不经过外网
 
-- `client.js`：浏览器侧全部 UI 与逻辑，通过 `window.__ModuleLoader__` 加载，注入 `@deepseek-ai/dsh-client-locale`、`-ui-layout`、`-ui-settings`、`-ui-sidebar`、`-ui-theme`。
-- `index.js`：host 侧只做媒体辅助，注册 `/api/skin-studio/media` 前缀路由：
-  - `ping` 健康检查；
-  - `prepare` 为无兼容音轨的视频生成 AAC 侧车（缓存在系统临时目录）；
-  - `pick-folder` / `video` 选择并流式播放本地视频（支持 Range）；
-  - `audio/*` 输出侧车音频；
-  - `proxy` / `proxy-file` 把浏览器解不了的封装转成可播放的 MP4。
-- `cordis.patch.yml`：把插件插进 profile 的 loader 层。
+清空站点数据会一并清掉自定义皮肤、壁纸和视频。
 
-## 目录
+## 已知限制
+
+- HEVC / H.265 在 Electron 的 Chromium 里能播放，但不能任意跳转进度；需要拖动进度条时请换 H.264
+- E-AC-3、DTS、TrueHD 等音轨 Chromium 无法解码，插件会用 ffmpeg 生成 AAC 侧车；缺少 ffmpeg 时视频无声
+- 「选择视频文件 / 选择文件夹」使用 macOS 的 `osascript`；其他系统请用设置面板里的文件选择入口
+- 自定义皮肤上限 12 套，自定义壁纸与视频各上限 10000 条
+
+## 目录结构
 
 ```
 skin-studio/
 ├── client.js          # 浏览器侧：皮肤、壁纸、设置面板
-├── index.js           # host 侧：媒体路由与 ffmpeg 兜底
+├── index.js           # host 侧：媒体路由、ffmpeg 兜底
 ├── cordis.patch.yml   # loader 插入声明
 ├── locale/
 │   ├── en.json
 │   └── zh.json
+├── docs/preview.webp  # 界面截图
 ├── icon.svg
-└── package.json
+├── package.json
+├── CHANGELOG.md
+└── LICENSE
 ```
 
 ## 兼容性
 
-- 在 DeepSeek Harness `0.2.2-rc.1`（macOS，Electron）上开发与验证。
-- 依赖 DSH 的 client 注入点与 `webServer` 服务；缺少 `webServer` 时自动降级为纯皮肤模式。
-- 视频 seek 受 Chromium 解码能力限制：HEVC 可以播放但无法任意跳转，需要进度控制时请换 H.264。
+| 项目 | 状态 |
+| --- | --- |
+| DeepSeek Harness | `0.2.2-rc.1`，已在本机 macOS 验证 |
+| 客户端注入点 | `@deepseek-ai/dsh-client-locale`、`-ui-layout`、`-ui-settings`、`-ui-sidebar`、`-ui-theme` |
+| host 服务 | 需要 `webServer`；不可用时自动降级为纯皮肤模式 |
+
+## 实现
+
+- `client.js` 由 `window.__ModuleLoader__` 加载，负责全部界面与逻辑，通过 theme 服务注入配色 token，通过 settings 服务注册设置页
+- `index.js` 注册 `/api/skin-studio/media` 前缀路由：`ping`、`prepare`（AAC 侧车）、`video`（Range 流）、`audio/*`、`proxy` / `proxy-file`（容器转封装）、`pick-folder`
+- `cordis.patch.yml` 把插件插入 profile 的 loader 层
+
+## 反馈
+
+- 问题与建议：仓库 [Issues](https://github.com/ghostmss86-afk/dsh-skin-studio/issues)
+- 版本变化：[CHANGELOG.md](CHANGELOG.md)
+
+如果这个插件对你有用，点一下仓库右上角的 Star，方便下次找到。
 
 ## 许可
 
