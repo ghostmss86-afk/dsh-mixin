@@ -19,7 +19,7 @@ window.__ModuleLoader__.load({
     // Only playback URLs (video / audio sidecar / proxy-file) may leave the app
     // origin. API calls must stay relative: the loopback server serves media
     // and nothing else.
-    const MEDIA_ASSET = /\/api\/skin-studio\/media\/(video|audio\/|proxy-file)/;
+    const MEDIA_ASSET = /\/api\/skin-studio\/media\/(video|audio\/|proxy-file|poster)/;
     function mediaPath(path) {
       let value = String(path || '');
       if (!value) return value;
@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.14';
+  const PLUGIN_VERSION = '1.0.15';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T23:52';
+  const BUILD = '2026-11-09T23:53';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -5785,7 +5785,14 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                 },
                   h('span', { className: 'dsh-skin-video-thumb' },
                     videoPoster(first)
-                      ? h('img', { className: 'dsh-skin-video-poster', src: mediaPath(videoPoster(first)), alt: '', loading: 'lazy', decoding: 'async' })
+                      ? h('img', {
+                        className: 'dsh-skin-video-poster',
+                        src: mediaPath(videoPoster(first)),
+                        alt: '',
+                        loading: 'lazy',
+                        decoding: 'async',
+                        onError: (event) => { event.currentTarget.style.visibility = 'hidden'; }
+                      })
                       : null,
                     h('span', { className: 'dsh-skin-video-folder-stack', 'aria-hidden': 'true' }),
                     h('span', { className: 'dsh-skin-video-count' }, String(ordered.length))
@@ -5942,7 +5949,16 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                     onClick: () => selectVideo(card.id)
                   },
                     videoPoster(card)
-                      ? h('img', { className: 'dsh-skin-video-poster', src: mediaPath(videoPoster(card)), alt: '', loading: 'lazy', decoding: 'async' })
+                      ? h('img', {
+                        className: 'dsh-skin-video-poster',
+                        src: mediaPath(videoPoster(card)),
+                        alt: '',
+                        loading: 'lazy',
+                        decoding: 'async',
+                        // A missing frame must look like an empty slot, not a
+                        // broken-image icon.
+                        onError: (event) => { event.currentTarget.style.visibility = 'hidden'; }
+                      })
                       : h('span', { className: 'dsh-skin-quick-vph' }),
                     active ? h('span', { className: 'dsh-skin-quick-vcheck' }, h(IconCheck, { size: 10 })) : null
                   ),

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.15 — 2026-11-09
+
+- 封面图也走回环源（`MEDIA_ASSET` 增加 `poster`），并在 `<img>` 加载失败时隐藏而不是显示裂图占位。
+- 这一条是防御性的：即使某一帧抽不出来，卡片也只是空槽，不会破坏网格的对齐。
+
 ## 1.0.14 — 2026-11-09
 
 - **修掉「改了像没改」的真正原因**：`/ping` 在宿主 `server.listen()` 还没触发 `listening` 时就返回了 `mediaServer: ""`，客户端拿到空串后既不重试也不再问，于是永远停在 `dsh-app://` 的相对地址上（`FFmpegDemuxer: open context failed` / `NETWORK_NO_SOURCE`）。宿主现在提供 `ready()` 并在 `/ping` 里 `await`；`base()` 不再返回未绑定端口。实测 `startMediaServer()` 后立刻取 `base()` 为 `""`，`await ready()` 后为 `http://127.0.0.1:PORT/<token>`。
