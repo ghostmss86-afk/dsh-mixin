@@ -133,7 +133,9 @@ skin-studio/
 ├── scripts/
 │   ├── guard.mjs         # 媒体不变量静态检查
 │   ├── guard.rules.json  # 规则即数据
-│   └── check-modes.mjs   # 显示模式的接线检查
+│   ├── check-modes.mjs   # 显示模式的接线检查
+│   ├── check-version.mjs # 版本四处一致性
+│   └── bump.mjs          # 一次改完四处版本 + BUILD
 ├── icon.svg
 ├── package.json
 ├── CHANGELOG.md
@@ -157,9 +159,16 @@ skin-studio/
 ## 开发
 
 ```bash
-npm run check     # 语法检查 + 显示模式接线检查
-npm run guard     # 媒体不变量静态检查（CI 与 pre-push 同款）
+npm run verify                  # 提交前必跑：语法 + 接线 + 版本一致性 + 反模式
+npm run bump -- 1.0.7           # 改版本只用这个（四处一起改，并刷新 BUILD）
+npm run check                   # 语法 + 显示模式接线
+npm run version:check           # 版本四处是否一致
+npm run guard                   # 媒体不变量静态检查
 ```
+
+`npm run verify` 是唯一入口，CI、`pre-push`、`prepublishOnly` 跑的都是它。
+改动约定写在仓库根的 `AGENTS.md`：版本单一来源、同一能力单一实现、新增组件必须证明被 mount、
+隐藏界面的功能必须有出口。
 
 `scripts/guard.mjs` 与规则来自 [engineering-lessons](https://github.com/ghostmss86-afk/engineering-lessons)，
 拦的是这个插件历史上真实踩过的坑（`file://` 音源、丢路径的 Blob 导入、`public.movie` 过滤等）。

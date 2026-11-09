@@ -59,8 +59,11 @@
   },
   "scripts": {
     "check": "node --check index.js && node --check client.js && node scripts/check-modes.mjs .",
+    "version:check": "node scripts/check-version.mjs .",
     "guard": "node scripts/guard.mjs --root . --rules scripts/guard.rules.json",
-    "prepublishOnly": "npm run check && npm run guard"
+    "verify": "npm run check && npm run version:check && npm run guard",
+    "bump": "node scripts/bump.mjs",
+    "prepublishOnly": "npm run verify"
   },
   "engines": {
     "node": ">=18"
