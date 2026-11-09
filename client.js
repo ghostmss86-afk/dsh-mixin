@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.27';
+  const PLUGIN_VERSION = '1.0.28';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T04:51';
+  const BUILD = '2026-11-10T05:02';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2337,6 +2337,20 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 /* Progress is a whale riding a short rail: it travels left → right as the film
    advances, showing exactly how far through you are. Drag it sideways to scrub;
    the picture itself is never covered by a bar. */
+/* Over a wallpaper the chat column is nearly transparent, so the composer is
+   easy to lose. A diffuse blue halo answers "is the pointer really on the
+   input?" the instant it is: hovering (or typing) lights the ring up, and a
+   click anywhere inside it starts typing. The outer layer is a ~50px blur so
+   it reads as light spilling out, not as a border. */
+body [data-composer-card]{transition:box-shadow .16s ease,border-color .16s ease;}
+body [data-composer-card]:hover,
+body [data-composer-card]:focus-within{
+  border-color:rgba(150,185,255,.62) !important;
+  box-shadow:
+    0 0 0 1px rgba(150,185,255,.55),
+    0 0 16px 2px rgba(105,145,255,.45),
+    0 0 50px 14px rgba(77,107,254,.32) !important;
+}
 .dsh-skin-whale-wrap{position:fixed;right:92px;bottom:52px;z-index:40;display:flex;align-items:center;gap:12px;width:min(720px,calc(100vw - 96px));padding:0;border:0;border-radius:0;background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;pointer-events:none;transition:opacity .2s ease;}
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
 .dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;flex:1 1 auto;min-width:22px;cursor:pointer;touch-action:none;}

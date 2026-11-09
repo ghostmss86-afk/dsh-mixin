@@ -133,6 +133,17 @@ expect(
   'pickPersisted drops the lock on save'
 )
 
+// 8. With a wallpaper on, the chat column is transparent enough that the
+//    composer is easy to lose; the halo is the only cue that the pointer is
+//    actually over the input.
+expect(
+  'the composer lights up under the pointer',
+  /\[data-composer-card\]:hover/.test(source) &&
+    /\[data-composer-card\]:focus-within/.test(source) &&
+    /0 0 50px 14px/.test(source),
+  'the halo is the only cue that the pointer sits on the input'
+)
+
 if (failures.length) {
   process.stdout.write(`\n${failures.length} wiring check(s) failed\n`)
   process.exitCode = 1
