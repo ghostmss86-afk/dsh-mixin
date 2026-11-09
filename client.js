@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.19';
+  const PLUGIN_VERSION = '1.0.20';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T01:35';
+  const BUILD = '2026-11-10T01:52';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2310,6 +2310,7 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
 .dsh-skin-whale-wrap .dsh-skin-whale{position:static;}
 .dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.66);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.dsh-skin-whale-episode{font-size:10px;line-height:1;color:rgba(255,255,255,.78);font-variant-numeric:tabular-nums;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 .dsh-skin-whale-wrap .dsh-skin-player-hud{position:absolute;right:0;bottom:26px;white-space:nowrap;}
 /* The vault chip moved into settings; its slot in the dock is the clock now. */
 body.dsh-skin-video-active .bv-chip{display:none !important;}
@@ -6437,12 +6438,14 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           );
           // Always the same tree: swapping structures on the first pointermove
           // would unmount the button and drop the pointer capture mid-drag.
+          const episodeTag = video ? videoLabel(video.name).tag : '';
           const bar = h('div', {
             className: 'dsh-skin-whale-wrap',
             'data-scheme': scheme,
             'data-visible': showChip ? 'true' : 'false'
           },
             h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
+            episodeTag ? h('span', { className: 'dsh-skin-whale-episode', key: 'episode', title: episodeTag }, episodeTag) : null,
             whale,
             hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null
           );
