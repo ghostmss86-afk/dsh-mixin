@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-skin-studio",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "type": "module",
   "description": "皮肤与壁纸插件：8 套预设与自定义配色、渐变/图片/视频聊天壁纸、收藏与实时预览，数据只存本机。",
   "keywords": [

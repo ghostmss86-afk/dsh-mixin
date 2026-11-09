@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.24';
+  const PLUGIN_VERSION = '1.0.25';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T03:54';
+  const BUILD = '2026-11-10T04:13';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2339,10 +2339,10 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
    the picture itself is never covered by a bar. */
 .dsh-skin-whale-wrap{position:fixed;right:92px;bottom:8px;z-index:40;display:flex;align-items:center;gap:10px;padding:3px 10px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(8,10,14,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(0,0,0,.28);transition:opacity .2s ease;}
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
-.dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;}
+.dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;flex:none;width:clamp(22px,calc((100vw - 400px)*.8),440px);cursor:pointer;touch-action:none;}
 .dsh-skin-whale-rail{position:absolute;left:11px;right:11px;height:2px;border-radius:1px;background:rgba(255,255,255,.22);pointer-events:none;}
-.dsh-skin-whale-fill{position:absolute;left:11px;height:2px;border-radius:1px;background:linear-gradient(90deg,rgba(77,107,254,.5),rgba(120,160,255,.95));pointer-events:none;transition:width .12s linear;}
-.dsh-skin-whale{position:absolute;top:0;left:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.8;transition:opacity .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
+.dsh-skin-whale-fill{position:absolute;left:11px;width:calc(var(--whale-pct,0)*(100% - 22px) + 11px);height:2px;border-radius:1px;background:linear-gradient(90deg,rgba(77,107,254,.5),rgba(120,160,255,.95));pointer-events:none;transition:width .12s linear;}
+.dsh-skin-whale{position:absolute;top:0;left:calc(var(--whale-pct,0)*(100% - 22px));width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.8;transition:opacity .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
 .dsh-skin-whale::after{content:"";position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,rgba(96,140,255,.55),rgba(96,140,255,.18) 45%,rgba(96,140,255,0) 72%);opacity:0;transform:scale(.7);transition:opacity .22s ease,transform .22s ease;pointer-events:none;}
 .dsh-skin-whale:hover{opacity:1;}
 .dsh-skin-whale:hover::after{opacity:1;transform:scale(1);}
@@ -6183,6 +6183,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const pendingSeekRef = useRef(null);
           const dragRef = useRef(null);
           const whaleRef = useRef(null);
+          const whaleTrackRef = useRef(null);
           const whaleDragRef = useRef(null);
           const ctrlHeldRef = useRef(false);
           const hideTimer = useRef(null);
@@ -6408,14 +6409,21 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           // Dragging the whale scrubs along the rail. The rail is a fixed pixel
           // width, so a full left-to-right drag covers the whole runtime — the
           // gesture matches what the picture on screen is doing.
-          const WHALE_TRACK_PX = 104;
           const WHALE_THUMB_PX = 22;
-          // How far the whale itself can travel along the rail. The drag maths
-          // must use this exact number: a wider span made the target race ahead
-          // of the thumb, so dropping at the visible right end overshot the
-          // runtime, clamped onto the last frame and — with loop on — replayed
-          // the whole video from 0:00.
-          const WHALE_SPAN_PX = WHALE_TRACK_PX - WHALE_THUMB_PX;
+          // How far the thumb can ride. The rail is sized in CSS from the
+          // window width (it collapses to a bare 22px thumb on narrow
+          // windows), so this is measured live: a fixed number raced ahead of
+          // the thumb and overshot the runtime at the visible right end.
+          const WHALE_COLLAPSED_PX = 96;
+          const WHALE_MIN_RAIL_PX = 48;
+          const whaleRailSpanPx = () => {
+            const el = whaleTrackRef.current;
+            if (!el || typeof el.getBoundingClientRect !== 'function') return WHALE_COLLAPSED_PX;
+            const rail = el.getBoundingClientRect().width - WHALE_THUMB_PX;
+            // A collapsed rail still scrubs: the swipe is mapped over a
+            // nominal distance so dragging the lone whale moves the film.
+            return rail >= WHALE_MIN_RAIL_PX ? rail : WHALE_COLLAPSED_PX;
+          };
           // Never scrub onto the final frame either: seeking to exactly
           // `duration` fires `ended`/wraps the loop, which reads as "the video
           // started over" instead of "it stopped where I dropped it".
@@ -6442,6 +6450,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
               x: event.clientX,
               start: Number(node.currentTime) || 0,
               total: Number.isFinite(total) && total > 0 ? total : 0,
+              span: whaleRailSpanPx(),
               moved: 0
             };
             draggingRef.current = true;
@@ -6454,7 +6463,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
               if (!drag) return;
               const dx = moveEvent.clientX - drag.x;
               drag.moved = Math.max(drag.moved, Math.abs(dx));
-              if (drag.total) applyWhaleSeek(drag.start + (dx / WHALE_SPAN_PX) * drag.total);
+              if (drag.total) applyWhaleSeek(drag.start + (dx / drag.span) * drag.total);
             };
             const end = () => {
               const drag = whaleDragRef.current;
@@ -6508,14 +6517,48 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           // position is proportional to playback progress, so you can see at a
           // glance how far through the film you are.
           const whalePct = clamp(Number(progress) || 0, 0, 1);
-          const whaleLeft = Math.round(whalePct * WHALE_SPAN_PX);
+          // Clicking the rail seeks to that exact moment and holds it there.
+          // The whale button keeps its own handler (tap = play/pause), so a
+          // press that starts on the thumb never lands here.
+          const onWhaleTrackDown = (event) => {
+            if (event.button != null && event.button !== 0) return;
+            const origin = event.target;
+            if (origin && typeof origin.closest === 'function' && origin.closest('.dsh-skin-whale')) return;
+            const el = whaleTrackRef.current;
+            const node = currentVideoNode();
+            if (!el || !node) return;
+            const total = Number(node.duration);
+            if (!Number.isFinite(total) || total <= 0) return;
+            const rect = el.getBoundingClientRect();
+            const rail = Math.max(rect.width - WHALE_THUMB_PX, 1);
+            const ratio = clamp((event.clientX - rect.left - WHALE_THUMB_PX / 2) / rail, 0, 1);
+            applyWhaleSeek(ratio * total);
+            if (store.get().videoPlaying) store.set({ videoPlaying: false });
+            recordDebug('whale:rail-seek');
+            // Keep scrubbing while the button stays down: a press that starts
+            // on the rail behaves like any player's seek bar.
+            if (typeof window === 'undefined') return;
+            const railTotal = total;
+            const railRect = rect;
+            const move = (moveEvent) => {
+              const next = clamp((moveEvent.clientX - railRect.left - WHALE_THUMB_PX / 2) / rail, 0, 1);
+              applyWhaleSeek(next * railTotal);
+            };
+            const stop = () => {
+              window.removeEventListener('pointermove', move);
+              window.removeEventListener('pointerup', stop);
+              window.removeEventListener('pointercancel', stop);
+            };
+            window.addEventListener('pointermove', move);
+            window.addEventListener('pointerup', stop);
+            window.addEventListener('pointercancel', stop);
+          };
           const whale = h('button', {
             ref: whaleRef,
             type: 'button',
             className: 'dsh-skin-whale',
             'data-scheme': scheme,
             'data-dragging': dragging ? 'true' : 'false',
-            style: { left: whaleLeft + 'px' },
             title: hud ? hud : t('video.whaleHint'),
             'aria-label': t('video.progress'),
             onPointerDown: onWhaleDown,
@@ -6539,16 +6582,18 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             'data-visible': showChip ? 'true' : 'false'
           },
             episodeTag ? h('span', { className: 'dsh-skin-whale-episode', key: 'episode', title: episodeTag }, episodeTag) : null,
+            h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
             h('div', {
               className: 'dsh-skin-whale-track',
               key: 'track',
-              style: { width: WHALE_TRACK_PX + 'px' }
+              ref: whaleTrackRef,
+              style: { '--whale-pct': String(whalePct) },
+              onPointerDown: onWhaleTrackDown
             },
               h('span', { className: 'dsh-skin-whale-rail', key: 'rail' }),
-              h('span', { className: 'dsh-skin-whale-fill', key: 'fill', style: { width: (whaleLeft + 11) + 'px' } }),
+              h('span', { className: 'dsh-skin-whale-fill', key: 'fill' }),
               whale
             ),
-            h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
             hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null
           );
           if (createPortal && typeof document !== 'undefined' && document.body) {
