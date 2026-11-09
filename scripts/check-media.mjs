@@ -72,6 +72,23 @@ check(
   'the clock + whale must disappear when nothing is playing'
 );
 
+
+check(
+  'cards get a poster, not a black <video> frame',
+  /async function handlePoster\(request, url\)/.test(host) &&
+    /ROUTE_PREFIX\}\/poster/.test(host) &&
+    /className: 'dsh-skin-video-poster'/.test(client),
+  'the grid must render a cached JPEG; a <video> per card is slow and shows black'
+);
+
+check(
+  'episode order and folder scope drive the playlist',
+  /function videoRank\(item\)/.test(client) &&
+    /const list = state\.customVideos\s*\n?\s*\.filter\(\(item\) => !folder \|\| videoFolderKey\(item\) === folder\)/.test(client) &&
+    /function playFolder\(folder\)/.test(client),
+  'clicking a folder must play it in S/E order, and next/prev must stay in scope'
+);
+
 if (failures.length) {
   for (const failure of failures) {
     console.error(`FAIL  ${failure.name}\n      ${failure.detail}`);

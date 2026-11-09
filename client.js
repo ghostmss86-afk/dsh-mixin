@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.12';
+  const PLUGIN_VERSION = '1.0.13';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-09T23:06';
+  const BUILD = '2026-11-09T23:37';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -618,6 +618,8 @@ window.__ModuleLoader__.load({
         glass: state.glass !== false,
         quickOpen: Boolean(state.quickOpen),
         videoId: typeof state.videoId === 'string' ? state.videoId : 'none',
+        // '' = play across every import; otherwise only that folder's episodes.
+        videoFolder: typeof state.videoFolder === 'string' ? state.videoFolder : '',
         videoFavorites: (Array.isArray(state.videoFavorites) ? state.videoFavorites : []).filter((id) => typeof id === 'string').slice(0, 500),
         videoPlaying: state.videoPlaying !== false,
         // Mute is a session-only preference for a wallpaper. Restoring a
@@ -692,6 +694,7 @@ window.__ModuleLoader__.load({
         dim: state.dim,
         glass: state.glass,
         videoId: state.videoId,
+        videoFolder: state.videoFolder,
         videoFavorites: state.videoFavorites,
         videoPlaying: state.videoPlaying,
         // Never persist the mute flag: restoring it is exactly how "no sound
@@ -1166,6 +1169,53 @@ window.__ModuleLoader__.load({
 
     function videoDisplayName(name) {
       return String(name || 'video').replace(/\.[^.]+$/, '').trim().slice(0, 60) || 'video';
+    }
+
+
+    // ---- filename intelligence -------------------------------------------
+    // A season dump is named `Billions.S06E01.1080p.WEBRip.CHS&ENG-HAN@X.mp4`.
+    // Nobody can scan forty of those in a grid, so the card shows `Billions`
+    // and `S06E01`; the raw name stays in the tooltip.
+    function videoLabel(name) {
+      const base = String(name || '').replace(/\.[^.]+$/, '').replace(/[._]+/g, ' ').trim();
+      const se = /^(.*?)[\s._-]*s(\d{1,2})[\s._-]*e(\d{1,3})/i.exec(base);
+      if (se) {
+        return {
+          show: se[1].replace(/[\s._-]+$/, '').trim() || base,
+          tag: 'S' + String(Number(se[2])).padStart(2, '0') + 'E' + String(Number(se[3])).padStart(2, '0'),
+          season: Number(se[2]),
+          episode: Number(se[3])
+        };
+      }
+      const ep = /^(.*?)[\s._-]*e(\d{1,3})/i.exec(base);
+      if (ep) {
+        return {
+          show: ep[1].replace(/[\s._-]+$/, '').trim() || base,
+          tag: 'E' + String(Number(ep[2])).padStart(2, '0'),
+          season: 0,
+          episode: Number(ep[2])
+        };
+      }
+      const cn = /^(.*?)[\s._-]*第\s*(\d{1,3})\s*[集话]/.exec(base);
+      if (cn) {
+        return { show: cn[1].trim() || base, tag: '第' + cn[2] + '集', season: 0, episode: Number(cn[2]) };
+      }
+      return { show: base.slice(0, 40), tag: '', season: 0, episode: 0 };
+    }
+
+    // Episodes sort by S/E, never by the alphabet soup after it. Files that
+    // carry no episode number keep the old created-at order at the end.
+    function videoRank(item) {
+      const label = videoLabel(item && item.name);
+      if (!label.tag) return Number.MAX_SAFE_INTEGER;
+      return label.season * 1000 + label.episode;
+    }
+
+    function videoFolderKey(item) {
+      const path = String((item && item.sourcePath) || '');
+      const cut = path.lastIndexOf('/');
+      if (cut <= 0) return '';
+      return path.slice(0, cut);
     }
 
     function formatBytes(value) {
@@ -2084,6 +2134,11 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-video-card.is-active{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px;}
 .dsh-skin-video-thumb{position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden;}
 .dsh-skin-video-thumb video{width:100%;height:100%;object-fit:cover;pointer-events:none;}
+.dsh-skin-video-poster{display:block;width:100%;height:100%;object-fit:cover;background:#0b0b0e;}
+.dsh-skin-video-badge{position:absolute;left:6px;bottom:6px;z-index:2;padding:2px 6px;border-radius:6px;background:rgba(0,0,0,.62);color:rgba(255,255,255,.94);font-size:10px;line-height:1.3;letter-spacing:.03em;font-variant-numeric:tabular-nums;}
+.dsh-skin-video-count{position:absolute;right:6px;bottom:6px;z-index:2;min-width:20px;padding:2px 6px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;text-align:center;font-variant-numeric:tabular-nums;}
+.dsh-skin-video-folder-stack{position:absolute;inset:6px 6px -4px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.05));pointer-events:none;}
+.dsh-skin-video-folder .dsh-skin-video-thumb::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.35));pointer-events:none;}
 .dsh-skin-video-meta{display:flex;flex-direction:column;gap:2px;padding:8px 10px;min-width:0;}
 .dsh-skin-video-name{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .dsh-skin-video-sub{font-size:11px;color:var(--dsw-alias-label-secondary);}
@@ -3045,7 +3100,11 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             await ensureVideoUrl(id);
             const item = findCustomVideo(id);
             if (item) prepareVideoAudio(item);
-            store.set({ videoId: id, videoMuted: false, videoAudioVersion: 3 });
+            // Picking an episode keeps the series scope; picking a video from a
+            // different folder drops it, otherwise next/prev would skip it.
+            const folder = item ? videoFolderKey(item) : '';
+            const scoped = store.get().videoFolder === folder ? folder : '';
+            store.set({ videoId: id, videoMuted: false, videoAudioVersion: 3, videoFolder: scoped });
           } else {
             store.set({ videoId: 'none' });
           }
@@ -3055,13 +3114,17 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
         // gives an unstable playlist order; fall back to natural name order so
         // S01E02 always follows S01E01.
         function comparePlaylist(a, b) {
-          const byTime = (Number(a && a.createdAt) || 0) - (Number(b && b.createdAt) || 0);
-          if (byTime !== 0) return byTime;
+          const byRank = videoRank(a) - videoRank(b);
+          if (byRank !== 0) return byRank;
           return String((a && a.name) || '').localeCompare(String((b && b.name) || ''), undefined, { numeric: true, sensitivity: 'base' });
         }
 
         async function stepVideo(delta) {
-          const list = store.get().customVideos.slice().sort(comparePlaylist);
+          const state = store.get();
+          const folder = state.videoFolder || '';
+          const list = state.customVideos
+            .filter((item) => !folder || videoFolderKey(item) === folder)
+            .sort(comparePlaylist);
           if (!list.length) return;
           const current = list.findIndex((item) => item.id === store.get().videoId);
           const next = list[(current + delta + list.length) % list.length];
@@ -3069,6 +3132,26 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             await selectVideo(next.id);
             store.set({ videoPlaying: true });
           }
+        }
+
+        // Posters are generated once per (path, size, mtime) by the host and
+        // cached as JPEG; the grid only ever loads an <img>.
+        function videoPoster(item) {
+          if (!item || !item.sourcePath) return '';
+          return '/api/skin-studio/media/poster?path=' + encodeURIComponent(item.sourcePath);
+        }
+
+        // Clicking a folder plays the whole series in episode order.
+        async function playFolder(folder) {
+          if (!folder) return;
+          const list = store.get().customVideos
+            .filter((item) => videoFolderKey(item) === folder)
+            .sort(comparePlaylist);
+          if (!list.length) return;
+          store.set({ videoFolder: folder });
+          await selectVideo(list[0].id);
+          store.set({ videoPlaying: true });
+          recordDebug('folder:play', { folder: folder.split('/').pop(), count: list.length });
         }
 
         function toggleVideoFavorite(id) {
@@ -5552,9 +5635,54 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           const state = useStore(store);
           useLocale();
           const selection = props.selection;
-          const cards = state.customVideos.slice().reverse();
+          // Newest first, but inside a series the episode order wins.
+          const cards = state.customVideos.slice().sort((a, b) => {
+            const rank = videoRank(a) - videoRank(b);
+            if (rank !== 0) return rank;
+            return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true });
+          });
+          const folderGroups = (() => {
+            const map = new Map();
+            state.customVideos.forEach((item) => {
+              const key = videoFolderKey(item);
+              if (!key) return;
+              if (!map.has(key)) map.set(key, []);
+              map.get(key).push(item);
+            });
+            return Array.from(map.entries())
+              .filter((entry) => entry[1].length > 1)
+              .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+          })();
           return h('div', { className: 'dsh-skin-videos' + (selection && selection.selecting ? ' is-selecting' : '') },
             h(VideoAddTile, { key: 'video-add' }),
+            folderGroups.map(([folder, list]) => {
+              const ordered = list.slice().sort(comparePlaylist);
+              const first = ordered[0];
+              const label = videoLabel(first.name);
+              const last = videoLabel(ordered[ordered.length - 1].name);
+              const range = label.tag && last.tag ? label.tag + ' – ' + last.tag : String(ordered.length);
+              const active = state.videoFolder === folder;
+              return h('div', { className: 'dsh-skin-video-item dsh-skin-video-folder-item', key: 'folder:' + folder },
+                h('button', {
+                  type: 'button',
+                  className: 'dsh-skin-video-card dsh-skin-video-folder' + (active ? ' is-active' : ''),
+                  title: folder,
+                  onClick: () => { playFolder(folder).catch(() => {}); }
+                },
+                  h('span', { className: 'dsh-skin-video-thumb' },
+                    videoPoster(first)
+                      ? h('img', { className: 'dsh-skin-video-poster', src: mediaPath(videoPoster(first)), alt: '', loading: 'lazy', decoding: 'async' })
+                      : null,
+                    h('span', { className: 'dsh-skin-video-folder-stack', 'aria-hidden': 'true' }),
+                    h('span', { className: 'dsh-skin-video-count' }, String(ordered.length))
+                  ),
+                  h('span', { className: 'dsh-skin-video-meta' },
+                    h('span', { className: 'dsh-skin-video-name' }, folder.split('/').filter(Boolean).pop() || label.show),
+                    h('span', { className: 'dsh-skin-video-sub' }, range)
+                  )
+                )
+              );
+            }),
             state.videoId !== 'none'
               ? h('div', { className: 'dsh-skin-video-item', key: 'video-none' },
                 h('button', {
@@ -5589,13 +5717,27 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                     onClick: (event) => { event.stopPropagation(); selection.toggleSelection(card.id, event); }
                   }, selection.selectedSet.has(card.id) ? h(IconCheck, { size: 10 }) : null) : null,
                   h('span', { className: 'dsh-skin-video-thumb' },
-                    card.fullUrl || card.url
-                      ? h('video', { src: card.fullUrl || card.url, muted: true, playsInline: true, preload: 'metadata', tabIndex: -1 })
+                    videoPoster(card)
+                      ? h('img', {
+                        className: 'dsh-skin-video-poster',
+                        src: mediaPath(videoPoster(card)),
+                        alt: '',
+                        loading: 'lazy',
+                        decoding: 'async'
+                      })
+                      : (card.fullUrl || card.url
+                        ? h('video', { src: card.fullUrl || card.url, muted: true, playsInline: true, preload: 'metadata', tabIndex: -1 })
+                        : null),
+                    videoLabel(card.name).tag
+                      ? h('span', { className: 'dsh-skin-video-badge' }, videoLabel(card.name).tag)
                       : null
                   ),
                   h('span', { className: 'dsh-skin-video-meta' },
-                    h('span', { className: 'dsh-skin-video-name' }, card.name),
-                    h('span', { className: 'dsh-skin-video-sub' }, formatBytes(card.size))
+                    h('span', { className: 'dsh-skin-video-name' }, videoLabel(card.name).show),
+                    h('span', { className: 'dsh-skin-video-sub' },
+                      videoLabel(card.name).tag
+                        ? videoLabel(card.name).tag + ' · ' + formatBytes(card.size)
+                        : formatBytes(card.size))
                   )
                 ),
                 h('button', {
@@ -5685,8 +5827,8 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
                     title: card.name, 'aria-pressed': active,
                     onClick: () => selectVideo(card.id)
                   },
-                    card.fullUrl || card.url
-                      ? h('video', { src: card.fullUrl || card.url, muted: true, playsInline: true, preload: 'metadata', tabIndex: -1 })
+                    videoPoster(card)
+                      ? h('img', { className: 'dsh-skin-video-poster', src: mediaPath(videoPoster(card)), alt: '', loading: 'lazy', decoding: 'async' })
                       : h('span', { className: 'dsh-skin-quick-vph' }),
                     active ? h('span', { className: 'dsh-skin-quick-vcheck' }, h(IconCheck, { size: 10 })) : null
                   ),
@@ -6025,8 +6167,12 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
 
           if (!active) return null;
 
-          // Playlist order matches stepVideo(): createdAt ascending, wrapping.
-          const playlist = (state.customVideos || []).slice().sort(comparePlaylist);
+          // Playlist order matches stepVideo(): S/E first, then names. A folder
+          // scope narrows it to that one series.
+          const scopeFolder = state.videoFolder || '';
+          const playlist = (state.customVideos || [])
+            .filter((item) => !scopeFolder || videoFolderKey(item) === scopeFolder)
+            .sort(comparePlaylist);
           const currentIndex = playlist.findIndex((item) => item.id === state.videoId);
           const playlistLength = playlist.length;
           const positionLabel = (currentIndex >= 0 ? currentIndex + 1 : 0) + ' / ' + playlistLength;

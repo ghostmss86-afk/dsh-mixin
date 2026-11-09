@@ -22,6 +22,7 @@ import { Readable } from 'node:stream';
 const ROUTE_PREFIX = '/api/skin-studio/media';
 const CACHE_DIR = join(tmpdir(), 'dsh-skin-studio-audio');
 const PROXY_DIR = join(tmpdir(), 'dsh-skin-studio-proxy');
+const POSTER_DIR = join(CACHE_DIR, 'posters');
 const PROXY_JOBS = new Map();
 const SUPPORTED_AUDIO = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac']);
 
@@ -305,6 +306,52 @@ async function pickVideoFolder() {
   }
 }
 
+
+/**
+ * One frame per video, cached by (path, size, mtime). The grid used to render a
+ * <video> per card, which is heavy and shows a black frame; a 560px JPEG loads
+ * instantly and looks like the photo grid next to it.
+ */
+async function handlePoster(request, url) {
+  const source = url.searchParams.get('path') || '';
+  if (!source || !source.startsWith('/')) return new Response('Bad request', { status: 400 });
+  let info;
+  try {
+    info = await stat(source);
+  } catch (error) {
+    return new Response('Not found', { status: 404 });
+  }
+  if (!info.isFile()) return new Response('Not found', { status: 404 });
+  const key = createHash('sha1')
+    .update(`${source}:${info.size}:${Math.round(info.mtimeMs)}:poster560`)
+    .digest('hex')
+    .slice(0, 20);
+  const file = join(POSTER_DIR, `${key}.jpg`);
+  let exists = true;
+  try { await stat(file); } catch (error) { exists = false; }
+  if (!exists) {
+    await mkdir(POSTER_DIR, { recursive: true });
+    // Skip idents/recaps: sample deeper into longer files.
+    const at = info.size > 120 * 1024 * 1024 ? '00:02:30' : '00:00:20';
+    await new Promise((resolve) => {
+      let settled = false;
+      const done = () => { if (!settled) { settled = true; resolve(); } };
+      const child = spawn('ffmpeg', [
+        '-y', '-ss', at, '-i', source, '-frames:v', '1',
+        '-vf', 'scale=560:-2', '-q:v', '4', file
+      ], { stdio: 'ignore' });
+      child.on('error', done);
+      child.on('close', done);
+      setTimeout(() => { try { child.kill('SIGKILL'); } catch (error) { /* ignore */ } done(); }, 25000);
+    });
+  }
+  try {
+    return await handleFile(request, file, 'image/jpeg');
+  } catch (error) {
+    return new Response('Not found', { status: 404 });
+  }
+}
+
 async function handleVideo(request, url) {
   const source = url.searchParams.get('path') || '';
   if (!source || !source.startsWith('/')) return new Response('Bad request', { status: 400 });
@@ -418,6 +465,10 @@ function startMediaServer() {
       const route = url.pathname.slice(prefix.length);
       const inner = new URL(url.href);
       inner.pathname = route;
+      if (route === `${ROUTE_PREFIX}/poster`) {
+        pipeHandler(request, response, handlePoster, inner).catch(() => fail(500));
+        return undefined;
+      }
       if (route === `${ROUTE_PREFIX}/video`) {
         pipeHandler(request, response, handleVideo, inner).catch(() => fail(500));
         return undefined;
@@ -575,6 +626,9 @@ export function apply(ctx) {
         const file = url.searchParams.get('path') || '';
         if (!file || !file.startsWith(PROXY_DIR)) return new Response('Forbidden', { status: 403 });
         return await handleFile(request, file, 'video/mp4');
+      }
+      if (url.pathname === `${ROUTE_PREFIX}/poster`) {
+        return await handlePoster(request, url);
       }
       if (url.pathname === `${ROUTE_PREFIX}/video`) {
         return await handleVideo(request, url);
