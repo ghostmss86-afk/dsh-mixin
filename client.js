@@ -165,13 +165,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.21';
+  const PLUGIN_VERSION = '1.0.22';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T02:06';
+  const BUILD = '2026-11-10T03:11';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2214,7 +2214,41 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-action{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:none;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;}
 .dsh-skin-action:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);}
 .dsh-skin-backdrop{position:fixed;inset:0;z-index:30;background:transparent;pointer-events:auto;}
-.dsh-skin-quick{position:fixed;z-index:31;left:16px;bottom:76px;display:flex;flex-direction:column;gap:14px;width:340px;max-height:min(560px,calc(100vh - 120px));overflow:auto;padding:14px;border-radius:16px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-panel,0 12px 40px rgba(0,0,0,.2));pointer-events:auto;font-size:13px;}
+/* Quick panel material. It used to paint var(--dsw-alias-bg-overlay), which is
+   an opaque alias — so the panel read as a slab standing on top of the app
+   while every Harness surface around it was glass. Harness surfaces are a fill
+   plus backdrop blur (._media_bgejw_80 pairs var(--dsw-specific-menu) with
+   var(--dsw-menu-backdrop-filter)); the panel takes the same blur, but its
+   fill is the sidebar's own colour at 40%, i.e. the same family as the column
+   beside it and one step more transparent. Colour comes from the token, not a
+   hex, so the panel follows skin, theme and the cinema palette by itself. */
+.dsh-skin-quick{
+  --dsh-skin-quick-fill:var(--dsw-specific-sidebar-fill,#2b2c30);
+  position:fixed;z-index:31;left:16px;bottom:76px;display:flex;flex-direction:column;gap:14px;width:340px;max-height:min(560px,calc(100vh - 120px));overflow:auto;padding:14px;border-radius:16px;border:.5px solid var(--dsw-alias-border-l2);
+  background:color-mix(in srgb,var(--dsh-skin-quick-fill) 40%,transparent);
+  -webkit-backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));
+  backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));
+  color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-panel,0 12px 40px rgba(0,0,0,.2));pointer-events:auto;font-size:13px;
+}
+/* Without backdrop-filter the 40% fill alone would let wallpaper show through
+   the text, so fall back to the Harness menu surface. */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .dsh-skin-quick{background:var(--dsw-specific-menu,var(--dsw-alias-bg-overlay));}
+}
+/* Inside the panel every control is a layer on glass, so the rules the Harness
+   already uses for nested surfaces apply: .5px hairlines, a neutral segment
+   indicator instead of a brand-coloured fill, and no saturated pills. These are
+   scoped to .dsh-skin-quick so the settings page keeps its current look. */
+.dsh-skin-quick .dsh-skin-btn{border-width:.5px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 72%,transparent);}
+.dsh-skin-quick .dsh-skin-filter{height:23px;border-width:.5px;border-color:var(--dsw-alias-border-l2);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 62%,transparent);color:var(--dsw-alias-label-tertiary);font-size:11px;}
+.dsh-skin-quick .dsh-skin-filter:hover{border-color:var(--dsw-alias-border-l3,#0003);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 82%,transparent);color:var(--dsw-alias-label-primary);}
+.dsh-skin-quick .dsh-skin-filter.is-active{border-color:transparent;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-weight:600;box-shadow:var(--dsw-elevation-soft,0 0 0 .5px var(--dsw-elevation-stroke-color));}
+.dsh-skin-quick .dsh-skin-modes{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2));border-color:transparent;}
+.dsh-skin-quick .dsh-skin-mode.is-active{background:var(--dsw-alias-bg-layer-1);border-color:transparent;color:var(--dsw-alias-label-primary);box-shadow:var(--dsw-elevation-soft,0 0 0 .5px var(--dsw-elevation-stroke-color));}
+.dsh-skin-quick .dsh-skin-wall-mini,.dsh-skin-quick .dsh-skin-video-card{border-width:.5px;}
+.dsh-skin-quick .dsh-skin-quick-label{color:var(--dsw-alias-label-tertiary);font-weight:600;letter-spacing:.01em;}
+.dsh-skin-quick .dsh-skin-quick-title{font-weight:600;letter-spacing:.01em;}
+.dsh-skin-quick .dsh-skin-quick-foot{border-top-color:var(--dsw-alias-border-l1);}
 .dsh-skin-quick:focus{outline:none;}
 .dsh-skin-quick-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .dsh-skin-quick-title{font-size:13px;font-weight:600;}
@@ -2300,16 +2334,23 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-video-toggle{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-size:12px;cursor:pointer;}
 .dsh-skin-video-toggle.is-on{background:var(--dsw-alias-brand-primary);color:#fff;border-color:transparent;}
 .dsh-skin-video-empty{font-size:12px;color:var(--dsw-alias-label-secondary);padding:8px 0;}
-/* Progress is a whale, not a bar: 15px of ink in the status row. Drag it
-   sideways to scrub; the picture stays untouched. */
-.dsh-skin-whale{position:fixed;right:92px;bottom:5px;z-index:40;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.68;transition:opacity .15s ease,transform .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
-.dsh-skin-whale:hover{opacity:1;}
-.dsh-skin-whale[data-dragging="true"]{cursor:grabbing;transform:scale(1.2);opacity:1;}
-.dsh-skin-whale svg{display:block;filter:drop-shadow(0 0 6px rgba(77,107,254,.5));}
-.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:5px;z-index:40;display:flex;align-items:center;gap:12px;transition:opacity .2s ease;}
+/* Progress is a whale riding a short rail: it travels left → right as the film
+   advances, showing exactly how far through you are. Drag it sideways to scrub;
+   the picture itself is never covered by a bar. */
+.dsh-skin-whale-wrap{position:fixed;right:92px;bottom:8px;z-index:40;display:flex;align-items:center;gap:10px;padding:3px 10px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(8,10,14,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(0,0,0,.28);transition:opacity .2s ease;}
 .dsh-skin-whale-wrap[data-visible="false"]{opacity:0;pointer-events:none;}
-.dsh-skin-whale-wrap .dsh-skin-whale{position:static;}
-.dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.92);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
+.dsh-skin-whale-track{position:relative;height:22px;display:flex;align-items:center;}
+.dsh-skin-whale-rail{position:absolute;left:11px;right:11px;height:2px;border-radius:1px;background:rgba(255,255,255,.22);pointer-events:none;}
+.dsh-skin-whale-fill{position:absolute;left:11px;height:2px;border-radius:1px;background:linear-gradient(90deg,rgba(77,107,254,.5),rgba(120,160,255,.95));pointer-events:none;transition:width .12s linear;}
+.dsh-skin-whale{position:absolute;top:0;left:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;margin:0;border:none;background:none;color:#4d6bfe;cursor:grab;opacity:.8;transition:opacity .15s ease;touch-action:none;-webkit-user-select:none;user-select:none;}
+.dsh-skin-whale::after{content:"";position:absolute;inset:-8px;border-radius:50%;background:radial-gradient(circle,rgba(96,140,255,.55),rgba(96,140,255,.18) 45%,rgba(96,140,255,0) 72%);opacity:0;transform:scale(.7);transition:opacity .22s ease,transform .22s ease;pointer-events:none;}
+.dsh-skin-whale:hover{opacity:1;}
+.dsh-skin-whale:hover::after{opacity:1;transform:scale(1);}
+.dsh-skin-whale[data-dragging="true"]{cursor:grabbing;opacity:1;}
+.dsh-skin-whale[data-dragging="true"]::after{opacity:1;transform:scale(1.12);}
+.dsh-skin-whale svg{display:block;position:relative;z-index:1;filter:drop-shadow(0 0 6px rgba(77,107,254,.5));transition:filter .22s ease;}
+.dsh-skin-whale:hover svg{filter:drop-shadow(0 0 9px rgba(120,160,255,.9));}
+.dsh-skin-whale-clock{font-size:10px;line-height:1;color:rgba(255,255,255,.95);font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 .dsh-skin-whale-episode{font-size:10px;line-height:1;color:#ffffff;font-variant-numeric:tabular-nums;letter-spacing:.06em;white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.5);}
 .dsh-skin-whale-wrap .dsh-skin-player-hud{position:absolute;right:0;bottom:26px;white-space:nowrap;}
 /* The vault chip moved into settings; its slot in the dock is the clock now. */
@@ -6364,8 +6405,10 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             return found || videoElementRef.current;
           };
 
-          // Dragging the whale scrubs. Travel of half the window width covers
-          // the whole runtime, which keeps the gesture short but precise.
+          // Dragging the whale scrubs along the rail. The rail is a fixed pixel
+          // width, so a full left-to-right drag covers the whole runtime — the
+          // gesture matches what the picture on screen is doing.
+          const WHALE_TRACK_PX = 104;
           const applyWhaleSeek = (seconds) => {
             const node = currentVideoNode();
             if (!node) return;
@@ -6397,7 +6440,7 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             if (event.currentTarget && event.currentTarget.setPointerCapture && event.pointerId != null) {
               try { event.currentTarget.setPointerCapture(event.pointerId); } catch (error) { /* ignore */ }
             }
-            const span = Math.max(320, (typeof window !== 'undefined' ? window.innerWidth : 1200) * 0.5);
+            const span = Math.max(96, WHALE_TRACK_PX - 22);
             const move = (moveEvent) => {
               const drag = whaleDragRef.current;
               if (!drag) return;
@@ -6440,14 +6483,18 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
           // (F7 / F8 / F9) and the clock lives in the composer dock chip. What
           // is left is a slim, right-aligned seek strip — one third of the
           // viewport wide, so the picture keeps almost all of its area.
-          // No track, no chrome: a single whale you can drag. Horizontal travel
-          // maps to time, so the picture never gets covered by a bar.
+          // No track, no chrome: a whale riding a short rail. Its horizontal
+          // position is proportional to playback progress, so you can see at a
+          // glance how far through the film you are.
+          const whalePct = clamp(Number(progress) || 0, 0, 1);
+          const whaleLeft = Math.round(whalePct * (WHALE_TRACK_PX - 22));
           const whale = h('button', {
             ref: whaleRef,
             type: 'button',
             className: 'dsh-skin-whale',
             'data-scheme': scheme,
             'data-dragging': dragging ? 'true' : 'false',
+            style: { left: whaleLeft + 'px' },
             title: hud ? hud : t('video.whaleHint'),
             'aria-label': t('video.progress'),
             onPointerDown: onWhaleDown,
@@ -6471,8 +6518,16 @@ body.dsh-skin-cinema .dsh-skin-whale,body.dsh-skin-cinema .dsh-skin-whale-wrap{o
             'data-visible': showChip ? 'true' : 'false'
           },
             episodeTag ? h('span', { className: 'dsh-skin-whale-episode', key: 'episode', title: episodeTag }, episodeTag) : null,
+            h('div', {
+              className: 'dsh-skin-whale-track',
+              key: 'track',
+              style: { width: WHALE_TRACK_PX + 'px' }
+            },
+              h('span', { className: 'dsh-skin-whale-rail', key: 'rail' }),
+              h('span', { className: 'dsh-skin-whale-fill', key: 'fill', style: { width: (whaleLeft + 11) + 'px' } }),
+              whale
+            ),
             h('span', { className: 'dsh-skin-whale-clock', key: 'clock' }, fmt(progress * duration) + ' / ' + fmt(duration)),
-            whale,
             hud ? h('span', { className: 'dsh-skin-player-hud', key: 'hud' }, hud) : null
           );
           if (createPortal && typeof document !== 'undefined' && document.body) {
