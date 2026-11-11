@@ -170,13 +170,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.31';
+  const PLUGIN_VERSION = '1.0.32';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-11T16:43';
+  const BUILD = '2026-11-11T17:20';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -6438,11 +6438,19 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
           const WHALE_MIN_RAIL_PX = 48;
           const whaleRailSpanPx = () => {
             const el = whaleTrackRef.current;
-            if (!el || typeof el.getBoundingClientRect !== 'function') return WHALE_COLLAPSED_PX;
-            const rail = el.getBoundingClientRect().width - WHALE_THUMB_PX;
-            // A collapsed rail still scrubs: the swipe is mapped over a
-            // nominal distance so dragging the lone whale moves the film.
-            return rail >= WHALE_MIN_RAIL_PX ? rail : WHALE_COLLAPSED_PX;
+            const measured = el && typeof el.getBoundingClientRect === 'function'
+              ? el.getBoundingClientRect().width - WHALE_THUMB_PX
+              : 0;
+            if (measured >= WHALE_MIN_RAIL_PX) return measured;
+            // A collapsed (or not-yet-laid-out) rail must not turn one pixel of
+            // drag into minutes of film: 96px of nominal travel meant a 100px
+            // drag jumped an hour, slammed the last frame and let `loop` wrap
+            // the film back to 0:00 -- "every drag restarts the video". Fall
+            // back to a viewport-proportional span instead.
+            const viewport = typeof window !== 'undefined' && Number.isFinite(window.innerWidth)
+              ? window.innerWidth
+              : 1280;
+            return Math.max(WHALE_COLLAPSED_PX, Math.round(viewport * 0.4));
           };
           // Never scrub onto the final frame either: seeking to exactly
           // `duration` fires `ended`/wraps the loop, which reads as "the video
@@ -6456,7 +6464,14 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
             const ceiling = total > WHALE_END_GUARD * 2 ? total - WHALE_END_GUARD : total;
             const value = clamp(seconds, 0, ceiling);
             markSeek(value);
+            // Remember the drop point: when the src is swapped (proxy
+            // preparation finishing, a relink) the element rewinds to 0:00 and
+            // onLoadedMetadata restores `resumeAt`. Without this the next press
+            // of play continued from a source that had silently restarted.
+            resumeAt = value;
             try { node.currentTime = value; } catch (error) { /* ignore */ }
+            // Landing on the last frame hands the film to `loop`, which reads
+            // as "it started over". Hold it there instead.
             setProgress(value / total);
           };
 
@@ -6503,6 +6518,11 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
                 if (settledTotal > 0 && Number(settled.currentTime) >= settledTotal - WHALE_END_GUARD - 0.05) {
                   store.set({ videoPlaying: false });
                   recordDebug('whale:hold-end');
+                } else {
+                  // Dropped mid-film: carry on playing from the drop point, the
+                  // way a normal player does.
+                  try { settled.play().catch(() => {}); } catch (error) { /* ignore */ }
+                  recordDebug('whale:resume');
                 }
               }
               // A tap that never moved is a play/pause toggle, not a seek.
@@ -6550,10 +6570,11 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
             const total = Number(node.duration);
             if (!Number.isFinite(total) || total <= 0) return;
             const rect = el.getBoundingClientRect();
-            const rail = Math.max(rect.width - WHALE_THUMB_PX, 1);
+            const measuredRail = rect.width - WHALE_THUMB_PX;
+            const rail = measuredRail >= WHALE_MIN_RAIL_PX ? measuredRail : whaleRailSpanPx();
             const ratio = clamp((event.clientX - rect.left - WHALE_THUMB_PX / 2) / rail, 0, 1);
             applyWhaleSeek(ratio * total);
-            if (store.get().videoPlaying) store.set({ videoPlaying: false });
+            if (!store.get().videoPlaying) store.set({ videoPlaying: true });
             recordDebug('whale:rail-seek');
             // Keep scrubbing while the button stays down: a press that starts
             // on the rail behaves like any player's seek bar.

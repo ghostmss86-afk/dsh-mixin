@@ -2,7 +2,7 @@
 
 [![check](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml/badge.svg)](https://github.com/ghostmss86-afk/dsh-skin-studio/actions/workflows/check.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.0.31-informational.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.0.32-informational.svg)](CHANGELOG.md)
 [![npm](https://img.shields.io/npm/v/dsh-plugin-skin-studio.svg)](https://www.npmjs.com/package/dsh-plugin-skin-studio)
 [![platform](https://img.shields.io/badge/platform-DSH%200.2.2--rc.1-lightgrey.svg)](#兼容性)
 
