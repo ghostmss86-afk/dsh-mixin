@@ -154,6 +154,25 @@ expect(
   'both read --dsh-skin-accent with the old blue only as a fallback'
 )
 
+// 10. The audio sidecar needs a route the Host actually registers. The Host
+//     matches exact paths, so `/audio/<hash>.m4a` 404'd and left the <video>
+//     muted on an E-AC-3 track -- picture, no sound. The URL now carries the
+//     file in a query string, and stored legacy URLs are refused so the client
+//     asks for a fresh one.
+const host = fs.readFileSync(path.join(root, 'index.js'), 'utf8')
+expect(
+  'the sidecar audio has a registered route',
+  host.includes("['/audio', ['GET', 'HEAD', 'OPTIONS']]") &&
+    host.includes('/audio?file=') &&
+    host.includes('sidecarUrl(output)'),
+  'the host must serve the sidecar from an exact path it registered'
+)
+expect(
+  'a 404 sidecar cannot keep the video muted',
+  source.includes('/api\\/skin-studio\\/media\\/audio\\/') && source.includes('[?&]file='),
+  'usableAudioUrl must reject the legacy path form so prepare runs again'
+)
+
 if (failures.length) {
   process.stdout.write(`\n${failures.length} wiring check(s) failed\n`)
   process.exitCode = 1

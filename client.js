@@ -19,7 +19,7 @@ window.__ModuleLoader__.load({
     // Only playback URLs (video / audio sidecar / proxy-file) may leave the app
     // origin. API calls must stay relative: the loopback server serves media
     // and nothing else.
-    const MEDIA_ASSET = /\/api\/skin-studio\/media\/(video|audio\/|proxy-file|poster)/;
+    const MEDIA_ASSET = /\/api\/skin-studio\/media\/(video|audio|proxy-file|poster)/;
     function mediaPath(path) {
       let value = String(path || '');
       if (!value) return value;
@@ -39,6 +39,11 @@ window.__ModuleLoader__.load({
       const url = String(value || '');
       if (!url) return '';
       if (/^file:/i.test(url)) return '';
+      // 1.0.31: the sidecar must go through the registered `/audio?file=` route.
+      // The old `/media/audio/<hash>.m4a` form only existed on the legacy
+      // prefix registrar, so on the current Host it 404'd -- and a sidecar that
+      // 404s is a muted <video> sitting on an E-AC-3 track: picture, no sound.
+      if (/\/api\/skin-studio\/media\/audio\//.test(url) && !/[?&]file=/.test(url)) return '';
       return url;
     }
 
@@ -165,13 +170,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.30';
+  const PLUGIN_VERSION = '1.0.31';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-10T05:17';
+  const BUILD = '2026-11-11T16:43';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on

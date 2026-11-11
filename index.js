@@ -90,7 +90,7 @@ async function ensureAudio(source) {
   try {
     const existing = await stat(output);
     if (existing.isFile() && existing.size > 1024) {
-      return { codec, url: `${ROUTE_PREFIX}/audio/${basename(output)}`, reason: 'cached' };
+      return { codec, url: sidecarUrl(output), reason: 'cached' };
     }
   } catch (error) { /* not cached */ }
   await mkdir(CACHE_DIR, { recursive: true });
@@ -101,7 +101,7 @@ async function ensureAudio(source) {
     '-c:a', 'aac', '-b:a', '192k', '-ac', '2',
     '-movflags', '+faststart', output
   ], { capture: true });
-  return { codec, url: `${ROUTE_PREFIX}/audio/${basename(output)}`, reason: 'transcoded' };
+  return { codec, url: sidecarUrl(output), reason: 'transcoded' };
 }
 
 
@@ -395,8 +395,18 @@ function parseRange(value, size) {
   return { start, end };
 }
 
+// The Host registers exact paths only, so a `/audio/<hash>.m4a` sidecar URL
+// never matched a route there and 404'd; a 404 sidecar leaves the <video>
+// muted (it has one) while its E-AC-3 track cannot be decoded -> silence.
+// Keep the file in the query string so one registered path serves them all.
+function sidecarUrl(file) {
+  return `${ROUTE_PREFIX}/audio?file=${encodeURIComponent(basename(file))}`;
+}
+
 async function handleAudio(request, url) {
-  const name = basename(decodeURIComponent(url.pathname.slice(`${ROUTE_PREFIX}/audio/`.length)));
+  const requested = url.searchParams.get('file') ||
+    url.pathname.slice(`${ROUTE_PREFIX}/audio/`.length);
+  const name = basename(decodeURIComponent(requested || ''));
   if (!name || name.includes('/') || name.includes('\\') || !name.endsWith('.m4a')) {
     return new Response('Not found', { status: 404 });
   }
@@ -473,7 +483,7 @@ function startMediaServer() {
         pipeHandler(request, response, handleVideo, inner).catch(() => fail(500));
         return undefined;
       }
-      if (route.startsWith(`${ROUTE_PREFIX}/audio/`)) {
+      if (route === `${ROUTE_PREFIX}/audio` || route.startsWith(`${ROUTE_PREFIX}/audio/`)) {
         pipeHandler(request, response, handleAudio, inner).catch(() => fail(500));
         return undefined;
       }
@@ -645,7 +655,7 @@ export function apply(ctx) {
       if (url.pathname === `${ROUTE_PREFIX}/video`) {
         return await handleVideo(request, url);
       }
-      if (url.pathname.startsWith(`${ROUTE_PREFIX}/audio/`)) {
+      if (url.pathname === `${ROUTE_PREFIX}/audio` || url.pathname.startsWith(`${ROUTE_PREFIX}/audio/`)) {
         return await handleAudio(request, url);
       }
       return new Response('Not found', { status: 404 });
@@ -677,6 +687,7 @@ export function apply(ctx) {
     ['/proxy-file', ['GET', 'HEAD', 'OPTIONS']],
     ['/poster', ['GET', 'HEAD', 'OPTIONS']],
     ['/video', ['GET', 'HEAD', 'OPTIONS']],
+    ['/audio', ['GET', 'HEAD', 'OPTIONS']],
     ['/report', ['GET', 'HEAD', 'POST', 'OPTIONS']]
   ];
 

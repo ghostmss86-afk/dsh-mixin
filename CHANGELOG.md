@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.31 — 2026-11-11
+
+- **修好「视频有画面没声音」**：E-AC-3 / DTS 这类 Chromium 解不了的音轨，本来靠宿主用 ffmpeg 转一条 AAC 侧车（`<audio>` 单放），但侧车的 URL 是 `/api/skin-studio/media/audio/<hash>.m4a` 这种**带前缀形式**。当前宿主只按**精确路径**注册插件路由（`ROUTES` 里没有 `/audio` 这一项），所以这条 URL 在应用内一律 404：侧车加载失败 → `<video>` 从 `muted` 退回自身音轨 → 而那条音轨正是解不了的 E-AC-3 → 画面动、没声音。AAC 的文件（第六季、第五季第 11 集）不需要侧车，所以一直正常，看着就像"只有某一季坏"。
+- 侧车改走**已注册的精确路径 + 查询参数**：`/api/skin-studio/media/audio?file=<hash>.m4a`，`ROUTES` 新增 `['/audio', ['GET','HEAD','OPTIONS']]`，`handleAudio` 同时接受 `?file=` 与旧的路径形式；回环媒体服务器（带 token 的那台）也照旧能服务同一个路径，两种来源都通。
+- 旧 URL 自动作废：`usableAudioUrl` 现在拒收 `/media/audio/<hash>.m4a`（没有 `?file=`），存过旧地址的记录会重新向宿主 `/prepare` 取一次（命中缓存，几乎不花时间），不会再拿一条 404 的侧车把视频静音。
+- 新增两条结构断言：宿主必须注册 `/audio` 且用 `sidecarUrl()` 生成地址；`usableAudioUrl` 必须拒收旧路径形式。
+
+
+## 1.0.31 — 2026-11-11
+
+- 
+
 ## 1.0.30 — 2026-11-10
 
 - **发光和鲸鱼跟着皮肤颜色走**：新增 `--dsh-skin-accent`，在 `buildTokens` 里和 `--dsw-alias-brand-primary` 一起写（`skin.light.brand` / `skin.dark.brand`，即用户点选的那个颜色，已按对比度做过一次提亮）。快捷面板「皮肤」里换哪个颜色，输入框光晕和小鲸鱼就跟着变——不再是写死的 DeepSeek 蓝。
