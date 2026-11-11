@@ -1,28 +1,30 @@
-# 皮肤与壁纸 · Skin Studio
+# dsh-mixin · 皮肤与壁纸插件
 
 **把 DeepSeek Harness 变成一间能放电影的房间。** 8 套预设皮肤、12 套自定义配色、9 套渐变，再加上真正能用的本地视频壁纸：播放列表、上下集、进度拖动、全屏、声音，全都在这一个插件里。
 
-[![npm version](https://img.shields.io/npm/v/dsh-plugin-skin-studio?color=4d6bfe)](https://www.npmjs.com/package/dsh-plugin-skin-studio) [![npm downloads](https://img.shields.io/npm/dm/dsh-plugin-skin-studio?color=4d6bfe)](https://www.npmjs.com/package/dsh-plugin-skin-studio) [![GitHub stars](https://img.shields.io/github/stars/ghostmss86-afk/dsh-skin-studio?style=flat&color=4d6bfe)](https://github.com/ghostmss86-afk/dsh-skin-studio/stargazers)
-[![version](https://img.shields.io/badge/version-1.0.37-informational.svg)](CHANGELOG.md) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)]() [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.2--rc.1-111827)]()
+[![npm version](https://img.shields.io/npm/v/dsh-mixin?color=4d6bfe)](https://www.npmjs.com/package/dsh-mixin) [![npm downloads](https://img.shields.io/npm/dm/dsh-mixin?color=4d6bfe)](https://www.npmjs.com/package/dsh-mixin) [![GitHub stars](https://img.shields.io/github/stars/ghostmss86-afk/dsh-mixin?style=flat&color=4d6bfe)](https://github.com/ghostmss86-afk/dsh-mixin/stargazers)
+[![version](https://img.shields.io/badge/version-1.0.38-informational.svg)](CHANGELOG.md) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)]() [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.2--rc.1-111827)]()
 
-![Skin Studio 预览](docs/preview.webp)
+> **新名字：`dsh-mixin`。** 仓库、npm 包与插件入口已从 `dsh-skin-studio` / `dsh-plugin-skin-studio` 统一改为 `dsh-mixin`。旧 npm 包仍可安装，但已标记弃用并指向这里；用户已保存的皮肤、壁纸和视频不受影响。
+
+![dsh-mixin 预览](docs/preview.webp)
 
 ## 安装
 
 **方式一：应用内安装（推荐）**
 
-在 DeepSeek Harness 的精选插件市场里搜索 **dsh-skin-studio** 或 **视频壁纸**，点安装。装完**完全退出并重启 DSH**（不是刷新页面）。
+在 DeepSeek Harness 的精选插件市场里搜索 **dsh-mixin** 或 **视频壁纸**，点安装。装完**完全退出并重启 DSH**（不是刷新页面）。
 
 **方式二：命令行安装**
 
 ```bash
-dsh plugin --profile web add dsh-plugin-skin-studio
+dsh plugin --profile web add dsh-mixin
 ```
 
 **方式三：从 GitHub 安装（跟随仓库最新代码）**
 
 ```bash
-dsh plugin --profile web add github:ghostmss86-afk/dsh-skin-studio
+dsh plugin --profile web add github:ghostmss86-afk/dsh-mixin
 ```
 
 > 三种方式都需要 **DeepSeek Harness 0.2.2-rc.1** 或更高版本。升级或重装后请完全重启 DSH；只刷新页面可能仍加载旧 bundle。市场里暂时搜不到时，用方式二。
@@ -36,9 +38,9 @@ dsh plugin --profile web add github:ghostmss86-afk/dsh-skin-studio
 
 ## 和同类不一样在哪
 
-大多数主题插件解决“配色”，大多数壁纸插件解决“铺一张图/一段静音循环”。**Skin Studio 把视频壁纸当成播放器来做**：
+大多数主题插件解决“配色”，大多数壁纸插件解决“铺一张图/一段静音循环”。**dsh-mixin 把视频壁纸当成播放器来做**：
 
-| 能力 | 主题配色类 | 壁纸引擎类 | **Skin Studio** |
+| 能力 | 主题配色类 | 壁纸引擎类 | **dsh-mixin** |
 | --- | --- | --- | --- |
 | 视频壁纸 | — | 部分 | **支持** |
 | 壁纸可开声 | — | 多数静音 | **支持** |
@@ -133,7 +135,7 @@ A：完全退出 DSH 再启动。设置页底部会显示 `BUILD` 时间，时�
 **profile link（跟随仓库更新）**
 
 ```bash
-git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-studio
+git clone https://github.com/ghostmss86-afk/dsh-mixin.git ~/plugins/dsh-mixin
 ```
 
 在该 profile 的 `package.json` 中加入依赖与 bundle：
@@ -141,11 +143,11 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 ```json
 {
   "dependencies": {
-    "dsh-plugin-skin-studio": "link:/Users/you/plugins/skin-studio"
+    "dsh-mixin": "link:/Users/you/plugins/dsh-mixin"
   },
   "dsh": {
     "profile": {
-      "bundles": ["dsh-plugin-skin-studio"]
+      "bundles": ["dsh-mixin"]
     }
   }
 }
@@ -153,7 +155,7 @@ git clone https://github.com/ghostmss86-afk/dsh-skin-studio.git ~/plugins/skin-s
 
 在该 profile 目录执行 `pnpm install`，然后重启 DeepSeek Harness。
 
-> 依赖键、`bundles` 与 `package.json` 的 `name` 必须都是 `dsh-plugin-skin-studio`，三者不一致时 loader 找不到插件。
+> 依赖键、`bundles` 与 `package.json` 的 `name` 必须都是 `dsh-mixin`，三者不一致时 loader 找不到插件。
 
 ## 开发
 
@@ -168,7 +170,7 @@ npm run version:check # 只检查版本一致性
 
 ## 反馈
 
-- Bug / 功能请求：[GitHub Issues](https://github.com/ghostmss86-afk/dsh-skin-studio/issues)
+- Bug / 功能请求：[GitHub Issues](https://github.com/ghostmss86-afk/dsh-mixin/issues)
 - 更新记录：[CHANGELOG.md](CHANGELOG.md)
 - 许可：[MIT](LICENSE)
 
@@ -176,19 +178,19 @@ npm run version:check # 只检查版本一致性
 
 ## English
 
-**Skin Studio turns DeepSeek Harness into a room that can play a movie.** Eight preset skins, twelve custom palettes, nine gradients, and a real local-video wallpaper player: playlists, previous/next, seek, fullscreen, and sound.
+**dsh-mixin turns DeepSeek Harness into a room that can play a movie.** Eight preset skins, twelve custom palettes, nine gradients, and a real local-video wallpaper player: playlists, previous/next, seek, fullscreen, and sound.
 
 **Install**
 
 ```bash
-dsh plugin --profile web add dsh-plugin-skin-studio
+dsh plugin --profile web add dsh-mixin
 ```
 
-Or install from the in-app plugin market by searching **dsh-skin-studio**. Requires DeepSeek Harness **0.2.2-rc.1+**. Fully quit and restart DSH after installing — a page refresh may keep the old bundle.
+Or install from the in-app plugin market by searching **dsh-mixin**. Requires DeepSeek Harness **0.2.2-rc.1+**. Fully quit and restart DSH after installing — a page refresh may keep the old bundle.
 
 **Why it is different**
 
-Most theme plugins change colors; most wallpaper plugins loop a silent clip. Skin Studio treats the video wallpaper as a player: it streams through a loopback route with HTTP Range support (so seeking is instant), keeps a playlist, plays with sound, and goes fullscreen. Audio codecs Chromium cannot decode (E-AC-3 / DTS / TrueHD) are converted to an AAC sidecar with `ffmpeg` when available.
+Most theme plugins change colors; most wallpaper plugins loop a silent clip. dsh-mixin treats the video wallpaper as a player: it streams through a loopback route with HTTP Range support (so seeking is instant), keeps a playlist, plays with sound, and goes fullscreen. Audio codecs Chromium cannot decode (E-AC-3 / DTS / TrueHD) are converted to an AAC sidecar with `ffmpeg` when available.
 
 **Privacy**
 

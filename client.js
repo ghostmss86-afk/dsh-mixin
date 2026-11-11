@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-plugin-skin-studio',
+  id: 'dsh-mixin',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -176,13 +176,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.37';
+  const PLUGIN_VERSION = '1.0.38';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-12T05:00';
+  const BUILD = '2026-11-12T05:36';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -4156,7 +4156,7 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
 
         let relinkSweepStarted = false;
         // Send the same snapshot to the host so the state of a silent video can
-        // be read from disk (tmpdir/dsh-skin-studio-audio/diag.json) without a
+        // be read from disk (tmpdir/dsh-mixin-audio/diag.json) without a
         // console. Fire after hydration and whenever the tab becomes visible.
         // Whether the media element can seek at all decides scrubbing: Chromium
         // reports an empty `seekable` range when a response arrives without
@@ -4862,7 +4862,7 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
               )
               : null,
             h('p', { className: 'dsh-skin-lede' }, t('page.desc')),
-            h('span', { className: 'dsh-skin-version', key: 'version' }, 'Skin Studio v' + PLUGIN_VERSION + ' · build ' + BUILD),
+            h('span', { className: 'dsh-skin-version', key: 'version' }, 'dsh-mixin v' + PLUGIN_VERSION + ' · build ' + BUILD),
             h(VideoDiagLine, { key: 'video-diag' }),
             h(Preview, { key: 'preview' }),
 

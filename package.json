@@ -1,6 +1,6 @@
 {
-  "name": "dsh-plugin-skin-studio",
-  "version": "1.0.37",
+  "name": "dsh-mixin",
+  "version": "1.0.38",
   "type": "module",
   "description": "DeepSeek Harness 皮肤与壁纸插件：本地视频当聊天壁纸且有声，支持播放列表与进度拖动，预设/自定义配色、渐变与图片壁纸。",
   "keywords": [
@@ -18,11 +18,11 @@
   "author": "ghostmss86-afk",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ghostmss86-afk/dsh-skin-studio.git"
+    "url": "git+https://github.com/ghostmss86-afk/dsh-mixin.git"
   },
-  "homepage": "https://github.com/ghostmss86-afk/dsh-skin-studio#readme",
+  "homepage": "https://github.com/ghostmss86-afk/dsh-mixin#readme",
   "bugs": {
-    "url": "https://github.com/ghostmss86-afk/dsh-skin-studio/issues"
+    "url": "https://github.com/ghostmss86-afk/dsh-mixin/issues"
   },
   "exports": {
     ".": "./index.js",

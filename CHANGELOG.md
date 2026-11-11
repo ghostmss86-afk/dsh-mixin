@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.38 — 2026-11-12
+
+- **改名 `dsh-mixin`**：npm 包、GitHub 仓库与插件入口统一为 `dsh-mixin`；旧包 `dsh-plugin-skin-studio` 已标记弃用并指向新包，旧仓库名 `dsh-skin-studio` 会自动跳转。市场检索词从 `dsh-skin-studio` 变为 `dsh-mixin`。
+- **老数据不动**：localStorage `dsh.skin-studio.v1`、IndexedDB `dsh-skin-studio`、媒体路由 `/api/skin-studio/media` 全部保持原名，升级后已保存的皮肤、壁纸与视频不会丢。
+- 设置面板左下角的版本行改为 `dsh-mixin v1.0.38`。
+
 ## 1.0.37 — 2026-11-12
 
 - **修好标题栏拖不动窗口**：DSH 新版给标题栏内的整行容器加了内联 `-webkit-app-region: no-drag`，内联样式优先级高于 1.0.35 的补丁规则，于是看起来空白的标题栏按下去仍然不动。新增 `WindowDragFix`：在 `[data-window-drag]` 行内把非控件容器重新标成 `drag`（`!important` 压过内联 no-drag），按钮、选项卡、输入框与 `[data-window-drag-recall]` 保持原行为；`MutationObserver` 跟随标题栏重绘，`scripts/check-modes.mjs` 增加挂载断言，防止下一次改动把拖拽区删掉。

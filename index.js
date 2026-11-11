@@ -20,8 +20,8 @@ import { execFile, spawn } from 'node:child_process';
 import { Readable } from 'node:stream';
 
 const ROUTE_PREFIX = '/api/skin-studio/media';
-const CACHE_DIR = join(tmpdir(), 'dsh-skin-studio-audio');
-const PROXY_DIR = join(tmpdir(), 'dsh-skin-studio-proxy');
+const CACHE_DIR = join(tmpdir(), 'dsh-mixin-audio');
+const PROXY_DIR = join(tmpdir(), 'dsh-mixin-proxy');
 const POSTER_DIR = join(CACHE_DIR, 'posters');
 const PROXY_JOBS = new Map();
 const SUPPORTED_AUDIO = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac']);
