@@ -524,8 +524,33 @@ function startMediaServer() {
 export const __internals = { startMediaServer, handleVideo, CACHE_DIR, ROUTE_PREFIX };
 
 export function apply(ctx) {
+  // Resolved before anything else can throw: the route handlers read this in
+  // `/ping` and `/origin.js`, and it used to be declared far below the early
+  // `return` in the `ctx.inject` branch. Since that branch always returns, the
+  // declaration never ran and both handlers threw "Cannot access 'webServer'
+  // before initialization" -> 500. The client could then never learn the
+  // loopback media origin, so every video streamed through dsh-app://, where a
+  // response loses its length and range semantics: Chromium reports an empty
+  // `seekable` range and each scrub is clamped back to 0:00.
+  let webServer;
+  try {
+    webServer = typeof ctx.get === 'function' ? ctx.get('webServer') : ctx.webServer;
+  } catch (error) {
+    webServer = undefined;
+  }
   const mediaServer = startMediaServer();
   if (typeof ctx.effect === 'function') ctx.effect(() => () => mediaServer.close());
+  // The loopback media server is the only path whose responses carry real
+  // range semantics; when it fails to bind the player silently falls back to
+  // the app-protocol URL and scrubbing clamps to 0:00. Record whether it bound
+  // so that failure is readable from disk instead of from a screenshot.
+  mediaServer.ready().then(async () => {
+    const base = mediaServer.base();
+    try {
+      await mkdir(CACHE_DIR, { recursive: true });
+      await writeFile(join(CACHE_DIR, 'server.json'), JSON.stringify({ base, bound: Boolean(base), at: Date.now() }), 'utf8');
+    } catch (error) { /* diagnostics must never break the feature */ }
+  }).catch(() => {});
 
   const resource = async (request) => {
     try {
@@ -549,7 +574,12 @@ export function apply(ctx) {
             const body = await request.text();
             await mkdir(CACHE_DIR, { recursive: true });
             await writeFile(join(CACHE_DIR, 'diag.json'), String(body || '{}').slice(0, 20000), 'utf8');
-            return json({ ok: true });
+            // This route is the one channel the renderer provably reaches, so it
+            // also carries the loopback media origin back. Without it the player
+            // streams through the app protocol, whose responses lose their length
+            // and range semantics: Chromium then reports an empty `seekable`
+            // range and every scrub is clamped back to 0:00.
+            return json({ ok: true, mediaServer: mediaServer.base() });
           } catch (error) {
             return json({ ok: false, error: String((error && error.message) || error) }, 500);
           }
@@ -728,12 +758,6 @@ export function apply(ctx) {
   }
 
   // Legacy Hosts: one prefix registrar.
-  let webServer;
-  try {
-    webServer = typeof ctx.get === 'function' ? ctx.get('webServer') : ctx.webServer;
-  } catch (error) {
-    webServer = undefined;
-  }
   if (webServer && typeof webServer.register === 'function') {
     try {
       const dispose = webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, resource });

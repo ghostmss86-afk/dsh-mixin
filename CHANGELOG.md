@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.34 — 2026-11-11
+
+- **修好「拖动进度条后视频总是回到 0:00」的真正根因**（1.0.24–1.0.33 追了几轮都没打中）：宿主 `index.js` 的 `apply()` 里，`let webServer = …` 这段解析写在 `ctx.inject(['connection'], …)` 分支的 `return;` **后面**。这个分支在当前宿主上永远会命中并 return，于是那段声明一次都没执行过；路由处理器里读 `webServer` 直接命中 TDZ（`Cannot access 'webServer' before initialization`），被外层 `catch` 兜成 **500 Internal error**。`/api/skin-studio/media/ping` 与 `/origin.js` 因此全废，客户端永远拿不到回环媒体服务器的地址。
+- 拿不到地址的后果才是「跳回开头」：视频只能走 `dsh-app://`，而 app 协议转发时会剥掉 `content-length`，Chromium 于是把这份媒体判成**不可 seek**（`seekable` 为空）；每次写 `currentTime` 都被夹回 0 并重新加载媒体——表现就是拖到哪都从头播、时钟一闪又回到 `0:00`。对照实验可复现：同一支 mkv，走支持 `Range` 的本地服务 `seekable = [[0, 3547.8]]`、seek 1800 稳落 1800；走不支持 `Range` 的 200 全量响应 `seekable = [[0,0]]`、seek 1800 立刻归 0。
+- 把 `webServer` 的解析**提到 `apply()` 最前面**（`startMediaServer()` 之前），并删掉下面重复的那段声明。现在 `/ping` 返回 200 且带 `mediaServer: http://127.0.0.1:<port>/<token>`，`origin.js` 恢复可用，客户端从首次渲染起就把 `<video src>` 指向回环服务。
+- 回环服务实测：`Range: bytes=0-99` → `206 Partial Content`、`content-range: bytes 0-99/1969905275`、`accept-ranges: bytes`，seek 语义完整。
+- 诊断增强：`reportDiagnostics` 现在会带 `mediaProbe`（origin / mediaOrigin / src / duration / readyState / seekable / buffered + 对当前 `src` 的 100 字节 range 试请求结果 + `/ping` 状态），并额外在 60 秒时上报一次；`/report` 的响应里回传 `mediaServer`，客户端拿它兜底切换 origin。宿主还会把媒体服务器地址写进 `server.json`，方便离线判断是否绑定成功。
+
 ## 1.0.32 — 2026-11-11
 
 - **修好「拖动进度条后一按播放就从头开始」**：拖拽换算里的轨道宽度会实测失败（`getBoundingClientRect().width - 22` 在运行时落到 `< 48px`），于是退回写死的 `96px` 标称值——1px 拖拽等于 37 秒影片，拖 100px 目标直接冲到片尾，撞上最后一帧后 `loop` 把片子绕回 0:00。现在实测不到宽度时回落到「窗口宽度 × 40%」（1280 宽约 512px），拖 100px 从「跳一小时」变成「走十来分钟」。

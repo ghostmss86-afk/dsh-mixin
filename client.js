@@ -170,13 +170,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.32';
+  const PLUGIN_VERSION = '1.0.34';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-11T17:20';
+  const BUILD = '2026-11-11T20:02';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -4123,18 +4123,76 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
         // Send the same snapshot to the host so the state of a silent video can
         // be read from disk (tmpdir/dsh-skin-studio-audio/diag.json) without a
         // console. Fire after hydration and whenever the tab becomes visible.
+        // Whether the media element can seek at all decides scrubbing: Chromium
+        // reports an empty `seekable` range when a response arrives without
+        // range semantics, and every `currentTime` write is then clamped back to
+        // 0 (which reads as "the film started over"). Record what the response
+        // actually carried so the next report says which link drops it.
+        const probeMediaResponse = async (node) => {
+          const out = {
+            origin: (typeof location !== 'undefined' ? String(location.origin || '') : ''),
+            mediaOrigin: String((typeof window !== 'undefined' && window.__skinMediaOrigin) || ''),
+            src: String((node && (node.currentSrc || node.src)) || '')
+          };
+          if (node) {
+            out.duration = Number(node.duration) || 0;
+            out.readyState = Number(node.readyState);
+            out.networkState = Number(node.networkState);
+            out.seekable = [];
+            for (let i = 0; i < node.seekable.length; i += 1) out.seekable.push([node.seekable.start(i), node.seekable.end(i)]);
+            out.buffered = [];
+            for (let i = 0; i < node.buffered.length; i += 1) out.buffered.push([node.buffered.start(i), node.buffered.end(i)]);
+          }
+          const probe = (url, init) => fetch(url, Object.assign({ cache: 'no-store' }, init || {}));
+          if (out.src && !/^(blob|data|file):/i.test(out.src)) {
+            try {
+              const ranged = await probe(out.src, { headers: { range: 'bytes=0-99' } });
+              out.rangeRequest = {
+                status: ranged.status,
+                contentRange: ranged.headers.get('content-range'),
+                acceptRanges: ranged.headers.get('accept-ranges'),
+                contentLength: ranged.headers.get('content-length'),
+                contentType: ranged.headers.get('content-type')
+              };
+              try { await ranged.arrayBuffer(); } catch (error) { /* ignore */ }
+            } catch (error) { out.rangeRequest = { error: String((error && error.message) || error) }; }
+          }
+          try {
+            const pinged = await probe('/api/skin-studio/media/ping');
+            out.ping = { status: pinged.status, body: (await pinged.text()).slice(0, 200) };
+          } catch (error) { out.ping = { error: String((error && error.message) || error) }; }
+          return out;
+        };
         const reportDiagnostics = () => {
           try {
-            const body = JSON.stringify(skinStudioDiag());
-            fetch('/api/skin-studio/media/report', {
-              method: 'POST', cache: 'no-store',
-              headers: { 'content-type': 'application/json' },
-              body
+            const payload = skinStudioDiag();
+            const node = typeof document !== 'undefined' && typeof document.querySelector === 'function'
+              ? document.querySelector('video.dsh-skin-video')
+              : null;
+            probeMediaResponse(node).then((mediaProbe) => {
+              payload.mediaProbe = mediaProbe;
+              return fetch('/api/skin-studio/media/report', {
+                method: 'POST', cache: 'no-store',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(payload)
+              }).then((response) => (response.ok ? response.json() : null)).then((reply) => {
+                // The report route is the only channel the renderer provably
+                // reaches, so the host hands the loopback media origin back here.
+                // Scrubbing needs it: the app-protocol path loses length and
+                // range semantics, which leaves the element with an empty
+                // `seekable` range and clamps every seek to 0:00.
+                const origin = reply && typeof reply.mediaServer === 'string' ? reply.mediaServer : '';
+                if (!origin || window.__skinMediaOrigin === origin) return;
+                const live = document.querySelector('video.dsh-skin-video');
+                if (live && Number.isFinite(live.currentTime) && live.currentTime > 0.5) resumeAt = live.currentTime;
+                if (applyMediaOrigin(origin)) store.touch();
+              }).catch(() => {});
             }).catch(() => {});
           } catch (error) { /* ignore */ }
         };
         setTimeout(reportDiagnostics, 5000);
         setTimeout(reportDiagnostics, 25000);
+        setTimeout(reportDiagnostics, 60000);
         if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
           document.addEventListener('visibilitychange', () => { if (!document.hidden) reportDiagnostics(); });
         }
