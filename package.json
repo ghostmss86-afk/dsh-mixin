@@ -1,8 +1,8 @@
 {
   "name": "dsh-plugin-skin-studio",
-  "version": "1.0.35",
+  "version": "1.0.36",
   "type": "module",
-  "description": "DeepSeek Harness 皮肤与壁纸插件：本地视频当聊天壁纸且有声、整季连播与进度拖动，预设/自定义配色、渐变与图片壁纸。",
+  "description": "DeepSeek Harness 皮肤与壁纸插件：本地视频当聊天壁纸且有声，支持播放列表与进度拖动，预设/自定义配色、渐变与图片壁纸。",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
@@ -58,7 +58,7 @@
     }
   },
   "scripts": {
-    "check": "node --check client.js && node --check index.js && node scripts/check-modes.mjs && node scripts/check-media.mjs && node scripts/check-host.mjs",
+    "check": "node --check client.js && node --check index.js && node scripts/check-package.mjs . && node scripts/check-modes.mjs && node scripts/check-media.mjs && node scripts/check-host.mjs",
     "version:check": "node scripts/check-version.mjs .",
     "guard": "node scripts/guard.mjs --root . --rules scripts/guard.rules.json",
     "verify": "npm run check && npm run version:check && npm run guard",

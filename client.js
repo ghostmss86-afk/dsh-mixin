@@ -8,10 +8,16 @@ window.__ModuleLoader__.load({
     const { useEffect, useRef, useState, useSyncExternalStore } = React;
 
     const STORAGE_KEY = 'dsh.skin-studio.v1';
-    // How long the app stays visible after the last input while a wallpaper
-    // video plays. 5s felt like the interface was disappearing on its own;
-    // 23s is long enough to read a paragraph without being interrupted.
-    const CINEMA_IDLE_MS = 23000;
+    // Immersive playback. The workspace is hidden while a video plays; only a
+    // continuous pointer move of at least CINEMA_SHOW_MOVE_MS brings it back,
+    // and it fades away again once the pointer stops. A short stop grace keeps
+    // the gestures of normal mouse use from strobing the interface, while the
+    // long CSS transition (CINEMA_FADE_MS) makes both directions feel like a
+    // slow dissolve instead of a class toggle.
+    const CINEMA_FADE_MS = 2400;
+    const CINEMA_SHOW_MOVE_MS = 1000;
+    const CINEMA_HIDE_IDLE_MS = 800;
+    const CINEMA_MOVE_GAP_MS = 180;
     function mediaBase() {
       if (typeof window === 'undefined') return '';
       return typeof window.__skinMediaOrigin === 'string' ? window.__skinMediaOrigin : '';
@@ -170,13 +176,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.35';
+  const PLUGIN_VERSION = '1.0.36';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-11T22:08';
+  const BUILD = '2026-11-12T02:56';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -490,6 +496,25 @@ window.__ModuleLoader__.load({
         'body.dsh-skin-video-active [data-message-bubble]{background:transparent !important;background-color:transparent !important;border:1px solid rgba(255,255,255,.14) !important;color:#fff !important;box-shadow:none !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important;text-shadow:0 1px 2px rgba(0,0,0,.7);}' +
         'body.dsh-skin-video-active [data-message-bubble] *{background:transparent !important;background-color:transparent !important;background-image:none !important;color:#fff !important;text-shadow:inherit;}' +
         'body.dsh-skin-video-active [data-message-bubble]::before,body.dsh-skin-video-active [data-message-bubble]::after{background:transparent !important;background-color:transparent !important;}' +
+        // Question surfaces are the one family that does not go through
+        // [data-message-bubble]: the live ask_user_question card paints
+        // --dsw-specific-input-major, and the settled answer bubble paints
+        // --dsw-specific-bubble. Both tokens stay opaque in the cinema palette,
+        // so a question used to land as a black slab on the movie. Give both
+        // the same translucent, blurred glass as the rest of the workspace.
+        'body.dsh-skin-video-active [data-question-reply] > div > div{' +
+        'background:rgba(8,10,14,.26) !important;background-color:rgba(8,10,14,.26) !important;' +
+        'border:1px solid rgba(255,255,255,.16) !important;border-radius:var(--dsw-radius-xl) !important;' +
+        'box-shadow:0 14px 38px rgba(0,0,0,.28) !important;color:rgba(255,255,255,.96) !important;' +
+        'backdrop-filter:blur(20px) saturate(1.2) !important;-webkit-backdrop-filter:blur(20px) saturate(1.2) !important;' +
+        'text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
+        'body.dsh-skin-video-active [data-question-key] > section{' +
+        'background:rgba(8,10,14,.3) !important;background-color:rgba(8,10,14,.3) !important;' +
+        'border:1px solid rgba(255,255,255,.16) !important;border-radius:var(--dsw-radius-xl) !important;' +
+        'box-shadow:0 18px 48px rgba(0,0,0,.34) !important;color:rgba(255,255,255,.96) !important;' +
+        'backdrop-filter:blur(20px) saturate(1.2) !important;-webkit-backdrop-filter:blur(20px) saturate(1.2) !important;' +
+        'text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
+        'body.dsh-skin-video-active :is([data-question-reply] > div > div,[data-question-key] > section) :where(dl,dt,dd,p){background:transparent !important;background-color:transparent !important;}' +
         'body.dsh-skin-video-active [data-chat-flow]{color:rgba(255,255,255,.96) !important;}' +
         'body.dsh-skin-video-active [data-chat-flow] :where(p,li,span,h1,h2,h3,h4,h5,h6,td,th,dt,dd,blockquote,strong,em){color:rgba(255,255,255,.96) !important;text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
         'body.dsh-skin-video-active [data-chat-flow] a{color:#9cc7ff !important;text-shadow:0 1px 2px rgba(0,0,0,.55);}' +
@@ -1625,14 +1650,14 @@ window.__ModuleLoader__.load({
       'video.whaleHint': 'Drag the whale to seek · tap to play or pause',
       'section.vault': 'Key vault',
       'vault.open': 'Open key vault',
-      'vault.desc': 'The vault chip moved out of the composer row so the playback clock can use that spot.',
+      'vault.desc': 'While a video is playing, the vault chip steps aside so the playback clock can use that spot. The vault is still reachable here.',
       'vault.missing': 'The key vault plugin is not installed in this profile.',
       'mode.conflict': 'That combination already belongs to the other mode.',
       'mode.clear': 'Clear shortcut',
       'mode.hint': 'First press locks the mode, the second press unlocks it. While one mode is locked the other shortcut is ignored. In pure mode, Esc twice is the emergency exit.',
       'mode.now': 'Now:',
       'mode.autoHide': 'Auto-hide the interface',
-      'mode.autoHide.desc': 'Fades the app 5 seconds after the last input while a video plays. Off by default; it never hides while you are typing.',
+      'mode.autoHide.desc': 'While a video plays, the workspace fades away about a second after the pointer stops. Move the pointer continuously for a second to bring it back. It never hides while you are typing.',
       'mode.on': 'On',
       'mode.off': 'Off',
       'mode.state.pure': 'pure (locked)',
@@ -1806,14 +1831,14 @@ window.__ModuleLoader__.load({
       'video.whaleHint': '拖动小鲸鱼调进度 · 轻点播放/暂停',
       'section.vault': '密码库',
       'vault.open': '打开密码库',
-      'vault.desc': '密码库的胶囊从输入框那一行移到这里，空出的位置用来显示播放时间。',
+      'vault.desc': '播放视频时，密码库的胶囊会让位给播放时间；这里仍可打开密码库。',
       'vault.missing': '当前 profile 里没有安装密码库插件。',
       'mode.conflict': '这个组合已经被另一种模式占用。',
       'mode.clear': '清除快捷键',
       'mode.hint': '第一次按锁定该模式，再按一次解除锁定。锁定期间另一个快捷键不生效。在纯净模式下，连按两次 Esc 是应急出口。',
       'mode.now': '当前：',
       'mode.autoHide': '界面自动隐藏（沉浸）',
-      'mode.autoHide.desc': '播放视频时，停止操作 5 秒后隐藏界面。默认关闭；输入文字时永不隐藏。',
+      'mode.autoHide.desc': '播放视频时，鼠标停下约 1 秒后工作界面淡出；连续移动鼠标 1 秒，界面再缓缓浮现。输入文字时永不隐藏。',
       'mode.on': '已开启',
       'mode.off': '已关闭',
       'mode.state.pure': '纯净（已锁定）',
@@ -2397,9 +2422,10 @@ body.dsh-skin-video-active .bv-chip{display:none !important;}
 .dsh-skin-player-hud{position:absolute;right:18px;top:-26px;padding:3px 9px;border-radius:6px;background:rgba(0,0,0,.66);color:#fff;font-size:11px;font-variant-numeric:tabular-nums;pointer-events:none;}
 .dsh-skin-player-spacer{flex:1;min-width:8px;}
 .dsh-skin-video-audio{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;}
-#root,[data-dsh-root]{transition:opacity .38s cubic-bezier(.22,.61,.36,1),transform .38s cubic-bezier(.22,.61,.36,1);}
-body.dsh-skin-cinema #root,body.dsh-skin-cinema [data-dsh-root]{opacity:0 !important;transform:translateY(14px) scale(.994);pointer-events:none !important;}
-body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{transition:opacity .38s ease,transform .38s ease;}
+#root,[data-dsh-root]{transition:opacity .38s cubic-bezier(.45,.05,.55,.95),transform .38s cubic-bezier(.45,.05,.55,.95);}
+body.dsh-skin-cinema #root,body.dsh-skin-cinema [data-dsh-root]{opacity:0 !important;transform:translateY(10px) scale(.998);pointer-events:none !important;}
+html:fullscreen body.dsh-skin-cinema,html:fullscreen body.dsh-skin-cinema *{cursor:none !important;}
+body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{transition:opacity ${CINEMA_FADE_MS}ms cubic-bezier(.45,.05,.55,.95),transform ${CINEMA_FADE_MS}ms cubic-bezier(.45,.05,.55,.95);}
 @media (max-width:520px){.dsh-skin-quick{left:12px;right:12px;width:auto;bottom:72px;}}
 @media (hover:none){.dsh-skin-del,.dsh-skin-fav,.dsh-skin-photo-del,.dsh-skin-select{opacity:1;pointer-events:auto;}}
 @media (prefers-reduced-motion:no-preference){
@@ -2640,17 +2666,22 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
             if (exit) { try { const p = exit.call(doc); if (p && p.catch) p.catch(() => {}); } catch (error) { /* ignore */ } }
             return true;
           }
-          const request = node.requestFullscreen || node.webkitRequestFullscreen;
-          if (request) {
-            try {
-              const p = request.call(node, { navigationUI: 'hide' });
-              if (p && p.then) p.then(() => { try { node.play && node.play().catch(() => {}); } catch (error) { /* ignore */ } }).catch(() => {});
-              else { try { node.play && node.play().catch(() => {}); } catch (error) { /* ignore */ } }
-            } catch (error) { /* ignore */ }
-            return true;
-          }
-          return false;
+          // Fullscreen the document, not the <video>. A fullscreened video sits
+          // in the browser's top layer, above every app surface; document
+          // fullscreen keeps the video layer as the backdrop and lets the
+          // workspace fade back in above it.
+          const target = doc.documentElement || doc.body;
+          const method = target && (target.requestFullscreen || target.webkitRequestFullscreen);
+          if (!method) return false;
+          const play = () => { try { node.play && node.play().catch(() => {}); } catch (error) { /* ignore */ } };
+          try {
+            const p = method.call(target, { navigationUI: 'hide' });
+            if (p && p.then) p.then(play).catch(() => {});
+            else play();
+          } catch (error) { /* ignore */ }
+          return true;
         }
+
         const onBackdropDblClick = (event) => {
           if (disposed || !event) return;
           const target = event.target;
@@ -6401,7 +6432,6 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
               event.preventDefault();
               if (typeof event.stopPropagation === 'function') event.stopPropagation();
               if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-              setVisible(true);
               if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 0.5) {
                 const node = currentVideoNode();
                 if (!node || !Number.isFinite(node.duration) || node.duration <= 0) return;
@@ -6450,7 +6480,6 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
               try { node.currentTime = next; } catch (error) { /* ignore */ }
               setProgress(next / drag.duration);
               setHud(fmt(next) + ' / ' + fmt(drag.duration));
-              setVisible(true);
             };
             const onUp = () => {
               if (!dragRef.current) return;
@@ -6709,41 +6738,74 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
           const state = useStore(store);
           const video = resolveVideo(state);
           const active = Boolean(video && video.source);
-          const wakeRef = React.useRef(null);
           useEffect(() => {
             if (!active || state.cinemaAutoHide !== true) return undefined;
             if (typeof document === 'undefined' || !document.body) return undefined;
-            let timer = null;
-            const wake = () => {
-              document.body.classList.remove('dsh-skin-cinema');
-              if (timer) clearTimeout(timer);
-              timer = setTimeout(() => {
+            let hideTimer = null;
+            let moveRunStart = 0;
+            let lastMoveAt = 0;
+            const clearHide = () => {
+              if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+            };
+            const hide = () => {
+              if (!document.body || isTextEntryFocused()) return false;
+              document.body.classList.add('dsh-skin-cinema');
+              return true;
+            };
+            const scheduleHide = (delay) => {
+              clearHide();
+              hideTimer = setTimeout(() => {
+                hideTimer = null;
                 // Never fade out the app while the caret is in a text field:
                 // the user is reading what they type and looking at the
                 // conversation above it. That vanishing act is what people
                 // describe as "the interface disappeared by itself".
-                if (!document.body || isTextEntryFocused()) return;
-                document.body.classList.add('dsh-skin-cinema');
-              }, CINEMA_IDLE_MS);
+                if (!hide()) scheduleHide(1200);
+              }, delay);
             };
-            wakeRef.current = wake;
-            const events = ['pointermove', 'pointerdown', 'mousemove', 'mousedown', 'wheel', 'keydown', 'touchstart'];
+            const reveal = () => {
+              clearHide();
+              document.body.classList.remove('dsh-skin-cinema');
+              scheduleHide(CINEMA_HIDE_IDLE_MS);
+            };
+            const onPointerMove = () => {
+              const now = Date.now();
+              if (now - lastMoveAt > CINEMA_MOVE_GAP_MS) moveRunStart = now;
+              lastMoveAt = now;
+              if (document.body.classList.contains('dsh-skin-cinema')) {
+                // The interface only comes back after a deliberate, continuous
+                // sweep; a single nudge must not flash the whole workspace.
+                if (moveRunStart && now - moveRunStart >= CINEMA_SHOW_MOVE_MS) reveal();
+                else scheduleHide(CINEMA_HIDE_IDLE_MS);
+                return;
+              }
+              scheduleHide(CINEMA_HIDE_IDLE_MS);
+            };
+            // Clicks, keys, wheel, touch and a focused text field are explicit
+            // intent: waiting a second there would let a click land on an
+            // invisible surface.
+            const onIntent = () => { reveal(); };
+            const moveEvents = ['pointermove', 'mousemove'];
+            const intentEvents = ['pointerdown', 'mousedown', 'wheel', 'keydown', 'touchstart'];
             // Capture on document so movement still wakes the UI when the app
             // root has pointer-events:none and no element is hit-tested.
-            events.forEach((name) => document.addEventListener(name, wake, { passive: true, capture: true }));
-            const onFocus = () => {
-              if (!isTextEntryFocused()) return;
-              document.body.classList.remove('dsh-skin-cinema');
-              if (timer) clearTimeout(timer);
-            };
-            document.addEventListener('focusin', onFocus, true);
-            wake();
+            moveEvents.forEach((name) => document.addEventListener(name, onPointerMove, { passive: true, capture: true }));
+            intentEvents.forEach((name) => document.addEventListener(name, onIntent, { passive: true, capture: true }));
+            const onFocusIn = () => { if (isTextEntryFocused()) reveal(); };
+            const onFocusOut = () => { if (!isTextEntryFocused()) scheduleHide(CINEMA_HIDE_IDLE_MS); };
+            document.addEventListener('focusin', onFocusIn, true);
+            document.addEventListener('focusout', onFocusOut, true);
+            // Starting a video is a deliberate act: show the workspace for the
+            // length of one fade first, then let idle time hide it.
+            document.body.classList.remove('dsh-skin-cinema');
+            scheduleHide(CINEMA_FADE_MS + 600);
             return () => {
-              if (timer) clearTimeout(timer);
-              events.forEach((name) => document.removeEventListener(name, wake, { capture: true }));
-              document.removeEventListener('focusin', onFocus, true);
-              wakeRef.current = null;
-              document.body.classList.remove('dsh-skin-cinema');
+              clearHide();
+              moveEvents.forEach((name) => document.removeEventListener(name, onPointerMove, { capture: true }));
+              intentEvents.forEach((name) => document.removeEventListener(name, onIntent, { capture: true }));
+              document.removeEventListener('focusin', onFocusIn, true);
+              document.removeEventListener('focusout', onFocusOut, true);
+              try { document.body.classList.remove('dsh-skin-cinema'); } catch (error) { /* ignore */ }
             };
           }, [active, state.cinemaAutoHide]);
           return null;

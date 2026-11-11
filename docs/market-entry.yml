@@ -1,7 +1,0 @@
-url: https://github.com/ghostmss86-afk/dsh-skin-studio
-name: ghostmss86-afk/dsh-skin-studio
-category: theme
-description:
-  en: "Turns DeepSeek Harness into a room that plays movies: local video wallpapers WITH sound (AAC sidecar for E-AC-3/DTS), whole-season playlists, F7/F8/F9, fullscreen, and a draggable progress strip. Glass material shares the app's own sidebar tokens."
-  zh: "把 DeepSeek Harness 变成一间能放电影的房间：本地视频当聊天壁纸且有声音（E-AC-3 / DTS 自动转 AAC 侧车）、整季连播、F7/F8/F9、双击全屏、右下角可拖的进度带；毛玻璃与 App 侧栏同一套材质。"
-icon: https://raw.githubusercontent.com/ghostmss86-afk/dsh-skin-studio/main/icon-180.png

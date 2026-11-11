@@ -96,16 +96,20 @@ expect(
   'the shortcut can black out the screen while the caret is in the input box'
 )
 
-// 6b. The interface may fade out after idle — but only after a long, explicit
-//     delay and never while the caret is in a text field. The 5s version made
-//     people think the app was closing itself.
+// 6b. The interface may fade out after the pointer rests — but only after a
+//     short, deliberate idle gap, only after a continuous sweep can bring it
+//     back, and never while the caret is in a text field. The 23s version made
+//     the app feel frozen; the old 5s version felt like it closed itself.
 expect(
-  'cinema auto-hide waits 23s and yields to typing',
-  /const CINEMA_IDLE_MS = 23000;/.test(source) &&
+  'cinema auto-hide follows pointer intent and yields to typing',
+  /const CINEMA_FADE_MS = 2400;/.test(source) &&
+    /const CINEMA_SHOW_MOVE_MS = 1000;/.test(source) &&
+    /const CINEMA_HIDE_IDLE_MS = 800;/.test(source) &&
     /cinemaAutoHide: state\.cinemaAutoHide !== false,/.test(source) &&
-    /if \(!document\.body \|\| isTextEntryFocused\(\)\) return;/.test(source) &&
-    /document\.addEventListener\('focusin', onFocus, true\)/.test(source),
-  'the idle timer is short, off by default, or ignores focused inputs'
+    /if \(!document\.body \|\| isTextEntryFocused\(\)\) return false;/.test(source) &&
+    /now - moveRunStart >= CINEMA_SHOW_MOVE_MS/.test(source) &&
+    /document\.addEventListener\('focusin', onFocusIn, true\)/.test(source),
+  'the idle timer ignores pointer intent, is too short, or hides while typing'
 )
 
 // 6c. A refused autoplay must fall back to muted playback, not leave a frozen

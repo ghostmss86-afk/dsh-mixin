@@ -23,8 +23,10 @@ const REQUIRED = [
   '/pick-folder',
   '/relink',
   '/proxy',
-  '/video',
+  '/proxy-file',
   '/poster',
+  '/video',
+  '/audio',
   '/report'
 ];
 
