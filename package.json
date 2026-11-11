@@ -2,7 +2,7 @@
   "name": "dsh-plugin-skin-studio",
   "version": "1.0.34",
   "type": "module",
-  "description": "皮肤与壁纸插件：8 套预设与自定义配色、渐变/图片/视频聊天壁纸、收藏与实时预览，数据只存本机。",
+  "description": "DeepSeek Harness 皮肤与壁纸插件：本地视频当聊天壁纸且有声、整季连播与进度拖动，预设/自定义配色、渐变与图片壁纸。",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
