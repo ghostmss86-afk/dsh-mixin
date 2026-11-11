@@ -170,13 +170,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.34';
+  const PLUGIN_VERSION = '1.0.35';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-11T20:02';
+  const BUILD = '2026-11-11T22:08';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -2289,6 +2289,10 @@ html[data-dsh-skin-mode="pure"],html[data-dsh-skin-mode="pure"] body{overflow:hi
 .dsh-skin-video-layer{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;background:#000;}
 .dsh-skin-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;pointer-events:none;}
 .dsh-skin-video-veil{position:absolute;inset:0;pointer-events:none;background:var(--dsh-skin-video-veil,transparent);}
+/* macOS 桌面端：每条 chrome 行只在自己身上标了 data-window-drag，行里某些容器
+   又整块声明 no-drag，于是一片看起来是空白的标题栏按下去拖不动窗口。
+   这里把「行内非控件元素」补回 drag：空白可以拖窗，按钮 / 输入框照旧可点。 */
+html[data-platform=darwin] body [data-window-drag] :where(div,span,header,section,nav,ul,li,p,h1,h2,h3,img,svg):not(:where(button,a,input,select,textarea,summary,label,[role],[tabindex],[contenteditable="true"],[data-window-drag-recall])){-webkit-app-region:drag;}
 .dsh-skin-videos{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 /* Quick panel shelf: two 16:9 cards per row, labels underneath. The old
    56x40 strip could only show a frame, never which episode it was. */

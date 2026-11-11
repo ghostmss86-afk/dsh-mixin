@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.35 — 2026-11-11
+
+- **顶部空行现在能拖窗**：macOS 桌面端每条标题栏行只在自己身上标 `data-window-drag`，行内有些容器整块 `no-drag`（右上角图标簇、会话标题簇、侧栏顶条里的品牌区等），于是「看起来是空白」的地方按下去拖不动窗口。新增一条只作用于 `[data-window-drag]` 行内**非控件**元素的补丁规则，把空白段重新接回拖拽区；按钮 / 输入框 / 选项卡仍走 `no-drag`，点击行为不变。
+- 该规则只挂在 `html[data-platform=darwin]` 下，Windows / Linux 与 Web 端不受影响；插件自己的面板、播放带、视频层挂在 `body` 直属层，不在拖拽行内，也不会被误改成可拖区。
+- README 重排：顶部换成「把 Harness 变成一间能放电影的房间」的定位，补「三十秒看懂」与「和市场上同类插件对比」两张表，功能表与安装段保持原样。
+
 ## 1.0.34 — 2026-11-11
 
 - **修好「拖动进度条后视频总是回到 0:00」的真正根因**（1.0.24–1.0.33 追了几轮都没打中）：宿主 `index.js` 的 `apply()` 里，`let webServer = …` 这段解析写在 `ctx.inject(['connection'], …)` 分支的 `return;` **后面**。这个分支在当前宿主上永远会命中并 return，于是那段声明一次都没执行过；路由处理器里读 `webServer` 直接命中 TDZ（`Cannot access 'webServer' before initialization`），被外层 `catch` 兜成 **500 Internal error**。`/api/skin-studio/media/ping` 与 `/origin.js` 因此全废，客户端永远拿不到回环媒体服务器的地址。
