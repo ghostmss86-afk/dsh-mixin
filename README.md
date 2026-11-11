@@ -3,7 +3,7 @@
 **把 DeepSeek Harness 变成一间能放电影的房间。** 8 套预设皮肤、12 套自定义配色、9 套渐变，再加上真正能用的本地视频壁纸：播放列表、上下集、进度拖动、全屏、声音，全都在这一个插件里。
 
 [![npm version](https://img.shields.io/npm/v/dsh-plugin-skin-studio?color=4d6bfe)](https://www.npmjs.com/package/dsh-plugin-skin-studio) [![npm downloads](https://img.shields.io/npm/dm/dsh-plugin-skin-studio?color=4d6bfe)](https://www.npmjs.com/package/dsh-plugin-skin-studio) [![GitHub stars](https://img.shields.io/github/stars/ghostmss86-afk/dsh-skin-studio?style=flat&color=4d6bfe)](https://github.com/ghostmss86-afk/dsh-skin-studio/stargazers)
-[![version](https://img.shields.io/badge/version-1.0.36-informational.svg)](CHANGELOG.md) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)]() [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.2--rc.1-111827)]()
+[![version](https://img.shields.io/badge/version-1.0.37-informational.svg)](CHANGELOG.md) [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)]() [![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.2--rc.1-111827)]()
 
 ![Skin Studio 预览](docs/preview.webp)
 

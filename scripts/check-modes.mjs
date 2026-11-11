@@ -112,7 +112,19 @@ expect(
   'the idle timer ignores pointer intent, is too short, or hides while typing'
 )
 
-// 6c. A refused autoplay must fall back to muted playback, not leave a frozen
+// 6c. The shell may paint its title-bar wrappers with inline no-drag. Inline
+//     wins over the stylesheet, which made the top bar impossible to grab.
+//     The repair pass must exist, be mounted, and leave controls alone.
+expect(
+  'the title bar keeps a drag region when the shell paints it no-drag',
+  /function WindowDragFix\(\)/.test(source) &&
+    /h\(WindowDragFix, \{ key: 'window-drag' \}\)/.test(source) &&
+    /data-window-drag-recall/.test(source) &&
+    /style\.setProperty\('-webkit-app-region', 'drag', 'important'\)/.test(source),
+  'inline no-drag wins over the stylesheet and the window cannot be moved'
+)
+
+// 6d. A refused autoplay must fall back to muted playback, not leave a frozen
 //     first frame; the first gesture is what restores the sound.
 expect(
   'refused autoplay falls back to muted playback',

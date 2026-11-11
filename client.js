@@ -176,13 +176,13 @@ window.__ModuleLoader__.load({
 
     const DB_NAME = 'dsh-skin-studio';
     const DB_VERSION = 2;
-  const PLUGIN_VERSION = '1.0.36';
+  const PLUGIN_VERSION = '1.0.37';
   // Shown in Settings next to the version, and returned by
   // window.__skinStudioDiag(). A stale build is the #1 reason a fix "comes
   // back": the Web GUI listens on a NEW port on every launch, so a plain page
   // refresh can still be served from the previous build's HTTP cache. Check
   // this stamp before debugging anything else.
-  const BUILD = '2026-11-12T02:56';
+  const BUILD = '2026-11-12T05:00';
     const MAX_CUSTOM_SKINS = 12;
     // High guard rails only: these limits are never meant to block real use.
     // Older builds merged IndexedDB records with cached localStorage entries on
@@ -6820,6 +6820,40 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
           return (h > 0 ? h + ':' : '') + mm + ':' + (sec < 10 ? '0' : '') + sec;
         }
 
+        // DSH marks each chrome row with [data-window-drag], but newer builds
+        // also put inline `-webkit-app-region: no-drag` on the wrappers that
+        // fill the row. Inline declarations beat the stylesheet, so the bar
+        // still looks empty and refuses to move the window. This repair pass
+        // only touches non-interactive wrappers; buttons, tabs, inputs and
+        // anything marked [data-window-drag-recall] keep their own behaviour.
+        // It is idempotent and re-runs when the shell swaps the title bar.
+        function WindowDragFix() {
+          useEffect(() => {
+            if (typeof document === 'undefined' || !document.body) return undefined;
+            const CONTROL = 'button,a,input,select,textarea,summary,label,[contenteditable="true"],[tabindex]:not([tabindex="-1"]),[role="tab"],[role="button"],[role="link"],[role="menuitem"],[role="menuitemcheckbox"],[role="menuitemradio"],[role="option"],[role="checkbox"],[role="radio"],[role="switch"],[role="slider"],[role="combobox"],[role="textbox"],[data-window-drag-recall]';
+            const CANDIDATE = 'div,span,header,section,nav,ul,li,p,h1,h2,h3,img,svg';
+            const setDrag = (node) => {
+              if (!node || !node.style) return;
+              try { node.style.setProperty('-webkit-app-region', 'drag', 'important'); } catch (error) { /* ignore */ }
+            };
+            const apply = () => {
+              document.querySelectorAll('[data-window-drag]').forEach((row) => {
+                if (row.closest('[data-window-drag-recall]')) return;
+                setDrag(row);
+                row.querySelectorAll(CANDIDATE).forEach((node) => {
+                  if (node.closest(CONTROL)) return;
+                  setDrag(node);
+                });
+              });
+            };
+            apply();
+            const observer = new MutationObserver(apply);
+            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-window-drag', 'data-window-drag-recall', 'class'] });
+            return () => observer.disconnect();
+          }, []);
+          return null;
+        }
+
         // The clock replaces the floating player bar: it sits in the composer
         // dock, where the vault chip used to be, and reads the live <video>
         // element directly so it needs no shared state with the seek strip.
@@ -6901,6 +6935,7 @@ body.dsh-skin-video-active #root,body.dsh-skin-video-active [data-dsh-root]{tran
             h('style', { key: 'styles' }, STYLE_CSS),
             h(ModeController, { key: 'mode' }),
             h(CinemaMode, { key: 'cinema' }),
+            h(WindowDragFix, { key: 'window-drag' }),
             h(MediaKeys, { key: 'media-keys' }),
             h(VideoBackground, { key: 'video-bg' }),
             h(VideoPlayerBar, { key: 'video-player' }),

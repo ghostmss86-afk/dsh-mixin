@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.37 — 2026-11-12
+
+- **修好标题栏拖不动窗口**：DSH 新版给标题栏内的整行容器加了内联 `-webkit-app-region: no-drag`，内联样式优先级高于 1.0.35 的补丁规则，于是看起来空白的标题栏按下去仍然不动。新增 `WindowDragFix`：在 `[data-window-drag]` 行内把非控件容器重新标成 `drag`（`!important` 压过内联 no-drag），按钮、选项卡、输入框与 `[data-window-drag-recall]` 保持原行为；`MutationObserver` 跟随标题栏重绘，`scripts/check-modes.mjs` 增加挂载断言，防止下一次改动把拖拽区删掉。
+
 ## 1.0.36 — 2026-11-12
 
 - **问题卡片与回答气泡终于也是玻璃了**：这两类界面走的是 DSH 自己的 `--dsw-specific-bubble` / `--dsw-specific-input-major`，视频模式下这两个 token 仍是实心深灰；已答复的问题气泡还不带 `[data-message-bubble]`，所以之前的透明规则全部落空，看上去就是一块黑板压在人脸上。现在 `[data-question-reply]` 与 `[data-question-key] > section` 统一换成半透明深色 + `blur(20px)` 玻璃，边框、投影、白字与其余聊天气泡一致。

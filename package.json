@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-skin-studio",
-  "version": "1.0.36",
+  "version": "1.0.37",
   "type": "module",
   "description": "DeepSeek Harness 皮肤与壁纸插件：本地视频当聊天壁纸且有声，支持播放列表与进度拖动，预设/自定义配色、渐变与图片壁纸。",
   "keywords": [
